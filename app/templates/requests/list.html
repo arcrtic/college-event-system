@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Resource Requests{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Resource Requests</h1>
+
+<form method="get" class="flex gap-3 mb-6 items-end">
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Status</label>
+        <select name="status" class="border rounded px-2 py-1.5 text-sm">
+            <option value="">All</option>
+            {% for s in statuses %}
+                <option value="{{ s }}" {{ 'selected' if s == status_filter }}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button class="bg-slate-200 text-sm px-4 py-1.5 rounded hover:bg-slate-300">Filter</button>
+</form>
+
+<div class="bg-white rounded shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-left text-slate-500">
+            <tr>
+                <th class="px-4 py-2">Event</th>
+                <th class="px-4 py-2">Window</th>
+                <th class="px-4 py-2">Resources</th>
+                <th class="px-4 py-2">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in requests %}
+            <tr class="border-t hover:bg-slate-50 cursor-pointer" onclick="window.location='{{ url_for('requests.view_request', request_id=req.id) }}'">
+                <td class="px-4 py-2 font-medium">{{ req.event.name }}</td>
+                <td class="px-4 py-2">{{ req.start_datetime.strftime('%d %b, %H:%M') }} - {{ req.end_datetime.strftime('%H:%M') }}</td>
+                <td class="px-4 py-2">{% for item in req.items %}{{ item.quantity }}x {{ item.resource.name }}{{ ', ' if not loop.last }}{% endfor %}</td>
+                <td class="px-4 py-2">
+                    <span class="px-2 py-0.5 rounded text-xs
+                        {% if req.status == 'Approved' %} bg-green-100 text-green-700
+                        {% elif req.status == 'Rejected' or req.status == 'Cancelled' %} bg-red-100 text-red-700
+                        {% else %} bg-amber-100 text-amber-700 {% endif %}">
+                        {{ req.status }}
+                    </span>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="px-4 py-6 text-center text-slate-400">No requests found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

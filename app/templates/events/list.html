@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Events{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold">Events</h1>
+    <a href="{{ url_for('events.create_event') }}"
+       class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">+ New Event</a>
+</div>
+
+<form method="get" class="flex gap-3 mb-6 items-end">
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Status</label>
+        <select name="status" class="border rounded px-2 py-1.5 text-sm">
+            <option value="">All</option>
+            {% for s in statuses %}
+                <option value="{{ s }}" {{ 'selected' if s == status_filter }}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Date</label>
+        <input type="date" name="date" value="{{ date_filter }}" class="border rounded px-2 py-1.5 text-sm">
+    </div>
+    <button class="bg-slate-200 text-sm px-4 py-1.5 rounded hover:bg-slate-300">Filter</button>
+    {% if status_filter or date_filter %}
+        <a href="{{ url_for('events.list_events') }}" class="text-sm text-slate-500 underline">Clear</a>
+    {% endif %}
+</form>
+
+<div class="bg-white rounded shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-left text-slate-500">
+            <tr>
+                <th class="px-4 py-2">Name</th>
+                <th class="px-4 py-2">Organizer</th>
+                <th class="px-4 py-2">Attendance</th>
+                <th class="px-4 py-2">Start</th>
+                <th class="px-4 py-2">End</th>
+                <th class="px-4 py-2">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in events %}
+            <tr class="border-t hover:bg-slate-50 cursor-pointer" onclick="window.location='{{ url_for('events.view_event', event_id=event.id) }}'">
+                <td class="px-4 py-2 font-medium">{{ event.name }}</td>
+                <td class="px-4 py-2">{{ event.organizer }}</td>
+                <td class="px-4 py-2">{{ event.expected_attendance }}</td>
+                <td class="px-4 py-2">{{ event.start_datetime.strftime('%d %b %Y, %H:%M') }}</td>
+                <td class="px-4 py-2">{{ event.end_datetime.strftime('%d %b %Y, %H:%M') }}</td>
+                <td class="px-4 py-2">
+                    <span class="px-2 py-0.5 rounded text-xs
+                        {% if event.status == 'Approved' %} bg-green-100 text-green-700
+                        {% elif event.status == 'Rejected' or event.status == 'Cancelled' %} bg-red-100 text-red-700
+                        {% elif event.status == 'Pending' %} bg-amber-100 text-amber-700
+                        {% else %} bg-slate-100 text-slate-600 {% endif %}">
+                        {{ event.status }}
+                    </span>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No events found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

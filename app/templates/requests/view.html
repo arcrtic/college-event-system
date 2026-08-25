@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Resource Request #{{ req.id }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-1">
+    <h1 class="text-2xl font-semibold">Resource Request #{{ req.id }}</h1>
+    <div class="space-x-2">
+        {% if req.status == 'Pending' %}
+            <form method="post" action="{{ url_for('approvals.approve_request', request_id=req.id) }}" class="inline">
+                <button class="bg-green-100 text-green-700 text-sm px-4 py-2 rounded hover:bg-green-200">Approve</button>
+            </form>
+            <form method="post" action="{{ url_for('approvals.reject_request', request_id=req.id) }}" class="inline" onsubmit="return confirm('Reject this request?');">
+                <button class="bg-red-100 text-red-700 text-sm px-4 py-2 rounded hover:bg-red-200">Reject</button>
+            </form>
+        {% elif req.status == 'Approved' %}
+            <form method="post" action="{{ url_for('approvals.allocate_request', request_id=req.id) }}" class="inline">
+                <button class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">Allocate</button>
+            </form>
+            <form method="post" action="{{ url_for('approvals.cancel_request', request_id=req.id) }}" class="inline" onsubmit="return confirm('Cancel this request?');">
+                <button class="bg-red-100 text-red-700 text-sm px-4 py-2 rounded hover:bg-red-200">Cancel</button>
+            </form>
+        {% elif req.status == 'Allocated' %}
+            <form method="post" action="{{ url_for('approvals.cancel_request', request_id=req.id) }}" class="inline" onsubmit="return confirm('Cancel this allocation? Resources will be released.');">
+                <button class="bg-red-100 text-red-700 text-sm px-4 py-2 rounded hover:bg-red-200">Cancel Allocation</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+<p class="text-sm text-slate-500 mb-6">
+    For <a href="{{ url_for('events.view_event', event_id=req.event.id) }}" class="underline">{{ req.event.name }}</a>
+</p>
+
+<dl class="bg-white rounded shadow-sm p-6 grid grid-cols-2 gap-4 text-sm max-w-xl mb-6">
+    <div><dt class="text-slate-500">Window</dt>
+        <dd class="font-medium">{{ req.start_datetime.strftime('%d %b %Y, %H:%M') }} – {{ req.end_datetime.strftime('%H:%M') }}</dd></div>
+    <div><dt class="text-slate-500">Status</dt><dd class="font-medium">{{ req.status }}</dd></div>
+</dl>
+
+<h2 class="text-lg font-semibold mb-3">Requested resources</h2>
+<div class="bg-white rounded shadow-sm overflow-hidden max-w-xl">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-left text-slate-500">
+            <tr><th class="px-4 py-2">Resource</th><th class="px-4 py-2">Type</th><th class="px-4 py-2">Quantity</th></tr>
+        </thead>
+        <tbody>
+            {% for item in req.items %}
+            <tr class="border-t">
+                <td class="px-4 py-2 font-medium">{{ item.resource.name }}</td>
+                <td class="px-4 py-2">{{ item.resource.type }}</td>
+                <td class="px-4 py-2">{{ item.quantity }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

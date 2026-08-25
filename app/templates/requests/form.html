@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Request Resources{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-1">Request Resources</h1>
+<p class="text-sm text-slate-500 mb-6">For event: <span class="font-medium text-slate-700">{{ event.name }}</span> (expected attendance: {{ event.expected_attendance }})</p>
+
+{% if item_problems %}
+<div class="mb-6 space-y-3">
+    {% for problem in item_problems %}
+    <div class="bg-red-50 border border-red-200 rounded p-4 text-sm">
+        <p class="font-medium text-red-800">{{ problem.label }}</p>
+        <ul class="list-disc list-inside text-red-700 mt-1">
+            {% for reason in problem.reasons %}<li>{{ reason }}</li>{% endfor %}
+        </ul>
+        {% if problem.alternatives %}
+        <p class="mt-2 text-slate-600">Suggested alternatives:</p>
+        <ul class="list-disc list-inside text-slate-700">
+            {% for alt in problem.alternatives %}
+                <li>{{ alt.name }} ({{ alt.type }}{% if alt.capacity %}, capacity {{ alt.capacity }}{% endif %})</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="bg-white rounded shadow-sm p-6 space-y-6 max-w-3xl">
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium mb-1">Start date/time</label>
+            <input type="datetime-local" name="start_datetime" required
+                   value="{{ form_data.start_datetime if form_data else '' }}"
+                   class="w-full border rounded px-3 py-2 text-sm">
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">End date/time</label>
+            <input type="datetime-local" name="end_datetime" required
+                   value="{{ form_data.end_datetime if form_data else '' }}"
+                   class="w-full border rounded px-3 py-2 text-sm">
+        </div>
+    </div>
+
+    <div>
+        <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium">Resources requested</label>
+            <button type="button" id="add-row" class="text-sm text-slate-600 underline">+ Add resource</button>
+        </div>
+        <div id="rows" class="space-y-2"></div>
+    </div>
+
+    <div class="flex gap-3 pt-2">
+        <button class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">Submit request</button>
+        <a href="{{ url_for('events.view_event', event_id=event.id) }}" class="text-sm text-slate-500 self-center">Cancel</a>
+    </div>
+</form>
+
+<script>
+const RESOURCES = [
+    {% for r in resources %}
+    { id: {{ r.id }}, name: {{ r.name|tojson }}, type: {{ r.type|tojson }}, active: {{ r.is_active|tojson }} },
+    {% endfor %}
+];
+const TYPES = {{ resource_types|tojson }};
+
+const rowsEl = document.getElementById('rows');
+
+function resourceOptions() {
+    return RESOURCES.map(r =>
+        `<option value="${r.id}">${r.name} (${r.type}${r.active ? '' : ' — inactive'})</option>`
+    ).join('');
+}
+
+function typeOptions() {
+    return TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+function addRow(prefill) {
+    const row = document.createElement('div');
+    row.className = 'flex gap-2 items-center';
+    row.innerHTML = `
+        <select name="required_type[]" class="border rounded px-2 py-2 text-sm w-40">${typeOptions()}</select>
+        <select name="resource_id[]" class="border rounded px-2 py-2 text-sm flex-1">
+            <option value="">-- choose resource --</option>
+            ${resourceOptions()}
+        </select>
+        <input type="number" name="quantity[]" min="1" value="1" class="border rounded px-2 py-2 text-sm w-20">
+        <button type="button" class="text-slate-400 hover:text-red-600 text-sm remove-row">✕</button>
+    `;
+    rowsEl.appendChild(row);
+    row.querySelector('.remove-row').addEventListener('click', () => row.remove());
+}
+
+document.getElementById('add-row').addEventListener('click', () => addRow());
+
+// Start with one empty row. (On validation failure we don't attempt to
+// reconstruct the exact rows the organizer had -- they can re-add them;
+// keeping this simple avoids a much more complex templating dance.)
+addRow();
+</script>
+{% endblock %}

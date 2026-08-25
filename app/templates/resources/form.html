@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Resource' if resource else 'New Resource' }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">{{ 'Edit Resource' if resource else 'New Resource' }}</h1>
+
+<form method="post" class="bg-white rounded shadow-sm p-6 space-y-4 max-w-md">
+    <div>
+        <label class="block text-sm font-medium mb-1">Resource name</label>
+        <input type="text" name="name" required
+               value="{{ form_data.name if form_data else (resource.name if resource else '') }}"
+               class="w-full border rounded px-3 py-2 text-sm">
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium mb-1">Type</label>
+        <select name="type" class="w-full border rounded px-3 py-2 text-sm">
+            {% for t in types %}
+                {% set current = form_data.type if form_data else (resource.type if resource else '') %}
+                <option value="{{ t }}" {{ 'selected' if t == current }}>{{ t }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium mb-1">Capacity <span class="text-slate-400 font-normal">(optional — leave blank for items like mics/cameras)</span></label>
+        <input type="number" name="capacity" min="1"
+               value="{{ form_data.capacity if form_data else (resource.capacity if resource and resource.capacity else '') }}"
+               class="w-full border rounded px-3 py-2 text-sm">
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium mb-1">Total units available <span class="text-slate-400 font-normal">(e.g. 5 if you own 5 identical mics)</span></label>
+        <input type="number" name="total_quantity" min="1"
+               value="{{ form_data.total_quantity if form_data else (resource.total_quantity if resource else 1) }}"
+               class="w-full border rounded px-3 py-2 text-sm">
+    </div>
+
+    <div class="flex gap-3 pt-2">
+        <button class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">
+            {{ 'Save changes' if resource else 'Add resource' }}
+        </button>
+        <a href="{{ url_for('resources.list_resources') }}" class="text-sm text-slate-500 self-center">Cancel</a>
+    </div>
+</form>
+{% endblock %}

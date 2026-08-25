@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Approvals{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Approvals</h1>
+
+<h2 class="text-lg font-semibold mb-3">Pending review</h2>
+<div class="bg-white rounded shadow-sm overflow-hidden mb-8">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-left text-slate-500">
+            <tr>
+                <th class="px-4 py-2">Event</th>
+                <th class="px-4 py-2">Window</th>
+                <th class="px-4 py-2">Resources</th>
+                <th class="px-4 py-2"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in pending %}
+            <tr class="border-t">
+                <td class="px-4 py-2 font-medium">
+                    <a href="{{ url_for('requests.view_request', request_id=req.id) }}" class="hover:underline">{{ req.event.name }}</a>
+                </td>
+                <td class="px-4 py-2">{{ req.start_datetime.strftime('%d %b, %H:%M') }} - {{ req.end_datetime.strftime('%H:%M') }}</td>
+                <td class="px-4 py-2">{% for item in req.items %}{{ item.quantity }}x {{ item.resource.name }}{{ ', ' if not loop.last }}{% endfor %}</td>
+                <td class="px-4 py-2 text-right space-x-2">
+                    <form method="post" action="{{ url_for('approvals.approve_request', request_id=req.id) }}" class="inline">
+                        <button class="bg-green-100 text-green-700 text-xs px-3 py-1.5 rounded hover:bg-green-200">Approve</button>
+                    </form>
+                    <form method="post" action="{{ url_for('approvals.reject_request', request_id=req.id) }}" class="inline" onsubmit="return confirm('Reject this request?');">
+                        <button class="bg-red-100 text-red-700 text-xs px-3 py-1.5 rounded hover:bg-red-200">Reject</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="px-4 py-6 text-center text-slate-400">Nothing pending.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<h2 class="text-lg font-semibold mb-3">Approved — awaiting allocation</h2>
+<div class="bg-white rounded shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-left text-slate-500">
+            <tr>
+                <th class="px-4 py-2">Event</th>
+                <th class="px-4 py-2">Window</th>
+                <th class="px-4 py-2">Resources</th>
+                <th class="px-4 py-2"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in approved %}
+            <tr class="border-t">
+                <td class="px-4 py-2 font-medium">
+                    <a href="{{ url_for('requests.view_request', request_id=req.id) }}" class="hover:underline">{{ req.event.name }}</a>
+                </td>
+                <td class="px-4 py-2">{{ req.start_datetime.strftime('%d %b, %H:%M') }} - {{ req.end_datetime.strftime('%H:%M') }}</td>
+                <td class="px-4 py-2">{% for item in req.items %}{{ item.quantity }}x {{ item.resource.name }}{{ ', ' if not loop.last }}{% endfor %}</td>
+                <td class="px-4 py-2 text-right space-x-2">
+                    <form method="post" action="{{ url_for('approvals.allocate_request', request_id=req.id) }}" class="inline">
+                        <button class="bg-slate-900 text-white text-xs px-3 py-1.5 rounded hover:bg-slate-700">Allocate</button>
+                    </form>
+                    <form method="post" action="{{ url_for('approvals.cancel_request', request_id=req.id) }}" class="inline" onsubmit="return confirm('Cancel this request?');">
+                        <button class="bg-red-100 text-red-700 text-xs px-3 py-1.5 rounded hover:bg-red-200">Cancel</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="px-4 py-6 text-center text-slate-400">Nothing awaiting allocation.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

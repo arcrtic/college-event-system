@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ event.name }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold">{{ event.name }}</h1>
+    <div class="flex gap-2">
+        <a href="{{ url_for('events.edit_event', event_id=event.id) }}"
+           class="bg-slate-200 text-sm px-4 py-2 rounded hover:bg-slate-300">Edit</a>
+        {% if event.status not in ['Cancelled', 'Completed'] %}
+        <form method="post" action="{{ url_for('events.cancel_event', event_id=event.id) }}"
+              onsubmit="return confirm('Cancel this event?');">
+            <button class="bg-red-100 text-red-700 text-sm px-4 py-2 rounded hover:bg-red-200">Cancel Event</button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('requests.create_request', event_id=event.id) }}"
+           class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">Request Resources</a>
+    </div>
+</div>
+
+<dl class="bg-white rounded shadow-sm p-6 grid grid-cols-2 gap-4 text-sm max-w-xl">
+    <div><dt class="text-slate-500">Organizer</dt><dd class="font-medium">{{ event.organizer }}</dd></div>
+    <div><dt class="text-slate-500">Status</dt><dd class="font-medium">{{ event.status }}</dd></div>
+    <div><dt class="text-slate-500">Expected attendance</dt><dd class="font-medium">{{ event.expected_attendance }}</dd></div>
+    <div><dt class="text-slate-500">Start</dt><dd class="font-medium">{{ event.start_datetime.strftime('%d %b %Y, %H:%M') }}</dd></div>
+    <div><dt class="text-slate-500">End</dt><dd class="font-medium">{{ event.end_datetime.strftime('%d %b %Y, %H:%M') }}</dd></div>
+</dl>
+
+<h2 class="text-lg font-semibold mt-8 mb-3">Resource Requests</h2>
+<div class="bg-white rounded shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-left text-slate-500">
+            <tr>
+                <th class="px-4 py-2">Window</th>
+                <th class="px-4 py-2">Resources</th>
+                <th class="px-4 py-2">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in event.requests %}
+            <tr class="border-t hover:bg-slate-50 cursor-pointer" onclick="window.location='{{ url_for('requests.view_request', request_id=req.id) }}'">
+                <td class="px-4 py-2">{{ req.start_datetime.strftime('%d %b, %H:%M') }} - {{ req.end_datetime.strftime('%H:%M') }}</td>
+                <td class="px-4 py-2">
+                    {% for item in req.items %}{{ item.quantity }}x {{ item.resource.name }}{{ ', ' if not loop.last }}{% endfor %}
+                </td>
+                <td class="px-4 py-2">{{ req.status }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="px-4 py-6 text-center text-slate-400">No resource requests yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

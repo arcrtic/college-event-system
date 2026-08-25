@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+
+<div class="grid grid-cols-2 gap-4 mb-8 max-w-xl">
+    <div class="bg-white rounded shadow-sm p-5">
+        <p class="text-xs text-slate-500 uppercase">Pending Requests</p>
+        <p class="text-3xl font-semibold mt-1">{{ pending_requests_count }}</p>
+        <a href="{{ url_for('approvals.list_approvals') }}" class="text-xs text-slate-500 underline">Review now</a>
+    </div>
+    <div class="bg-white rounded shadow-sm p-5">
+        <p class="text-xs text-slate-500 uppercase">Upcoming Events</p>
+        <p class="text-3xl font-semibold mt-1">{{ upcoming_events|length }}</p>
+        <a href="{{ url_for('events.list_events') }}" class="text-xs text-slate-500 underline">View all</a>
+    </div>
+</div>
+
+<h2 class="text-lg font-semibold mb-3">Next up</h2>
+<div class="bg-white rounded shadow-sm overflow-hidden max-w-2xl">
+    <table class="w-full text-sm">
+        <tbody>
+            {% for event in upcoming_events %}
+            <tr class="border-t hover:bg-slate-50 cursor-pointer" onclick="window.location='{{ url_for('events.view_event', event_id=event.id) }}'">
+                <td class="px-4 py-2 font-medium">{{ event.name }}</td>
+                <td class="px-4 py-2 text-slate-500">{{ event.start_datetime.strftime('%d %b %Y, %H:%M') }}</td>
+                <td class="px-4 py-2">{{ event.status }}</td>
+            </tr>
+            {% else %}
+            <tr><td class="px-4 py-6 text-center text-slate-400">Nothing upcoming.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

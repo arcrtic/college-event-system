@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Resource Availability{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold">Resource Availability</h1>
+    <a href="{{ url_for('resources.list_resources') }}" class="text-sm text-slate-500 underline">All resources</a>
+</div>
+
+<form method="get" class="flex gap-3 mb-6 items-end">
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Start date/time</label>
+        <input type="datetime-local" name="start_datetime" value="{{ start_raw }}" class="border rounded px-2 py-1.5 text-sm">
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">End date/time</label>
+        <input type="datetime-local" name="end_datetime" value="{{ end_raw }}" class="border rounded px-2 py-1.5 text-sm">
+    </div>
+    <button class="bg-slate-900 text-white text-sm px-4 py-1.5 rounded hover:bg-slate-700">Check availability</button>
+</form>
+
+{% if error %}
+<div class="mb-6 px-4 py-3 rounded text-sm bg-red-100 text-red-800 border border-red-200">{{ error }}</div>
+{% endif %}
+
+{% if not checked %}
+<p class="text-sm text-slate-500 mb-4">Pick a start and end time above to see how many units of each resource are free during that window. Showing all active resources below.</p>
+{% endif %}
+
+<div class="bg-white rounded shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-left text-slate-500">
+            <tr>
+                <th class="px-4 py-2">Resource</th>
+                <th class="px-4 py-2">Type</th>
+                <th class="px-4 py-2">Capacity</th>
+                <th class="px-4 py-2">Total units</th>
+                {% if checked %}
+                <th class="px-4 py-2">Free in window</th>
+                <th class="px-4 py-2"></th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr class="border-t">
+                <td class="px-4 py-2 font-medium">{{ row.resource.name }}</td>
+                <td class="px-4 py-2">{{ row.resource.type }}</td>
+                <td class="px-4 py-2">{{ row.resource.capacity if row.resource.capacity else '—' }}</td>
+                <td class="px-4 py-2">{{ row.resource.total_quantity }}</td>
+                {% if checked %}
+                <td class="px-4 py-2 font-medium {{ 'text-green-700' if row.free > 0 else 'text-red-600' }}">
+                    {{ row.free }} / {{ row.resource.total_quantity }}
+                </td>
+                <td class="px-4 py-2">
+                    <span class="px-2 py-0.5 rounded text-xs {{ 'bg-green-100 text-green-700' if row.free > 0 else 'bg-red-100 text-red-700' }}">
+                        {{ 'Available' if row.free > 0 else 'Fully booked' }}
+                    </span>
+                </td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No active resources.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
