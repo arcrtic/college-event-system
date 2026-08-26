@@ -23,8 +23,13 @@ import sys
 import time
 
 
-def run():
-    app = create_app()
+def seed_data(app):
+    """
+    Runs the actual seeding against an already-constructed Flask app.
+    Split out from run() so app/__init__.py can call this directly in a
+    background thread on startup (needed on plans without Shell access,
+    where `python seed.py` can't be run manually after deploy).
+    """
     with app.app_context():
         # Retry connecting in case PostgreSQL database is still spinning up
         connected = False
@@ -199,6 +204,13 @@ def run():
         print(f"  - {len(resources)} campus resources")
         print("  - 4 sample events across Draft, Pending, Approved, and Completed")
         print("  - Active allocations demonstrating double-booking locks and suitability validation.")
+
+
+def run():
+    """Standalone entry point: builds its own app, then seeds it.
+    Still usable locally via `python seed.py` / `python seed.py --reset`."""
+    app = create_app()
+    seed_data(app)
 
 
 if __name__ == "__main__":

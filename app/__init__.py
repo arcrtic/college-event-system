@@ -57,6 +57,24 @@ def create_app(config_class=Config):
     with app.app_context():
         db.create_all()
 
+    # Auto-seed on startup in a background thread. This replaces running
+    # `python seed.py` manually via the Render Shell (not available on the
+    # free plan). It's non-blocking so a slow/unready database never delays
+    # gunicorn binding the port -- seed_data() itself is idempotent (it
+    # skips seeding if data already exists), so this is safe to run on
+    # every boot, including redeploys and worker restarts.
+    if os.environ.get("AUTO_SEED", "1") == "1":
+        import threading
+
+        def _seed_in_background():
+            try:
+                from seed import seed_data
+                seed_data(app)
+            except Exception as e:
+                print(f"[WARN] Background seeding failed: {e}")
+
+        threading.Thread(target=_seed_in_background, daemon=True).start()
+
     return app
 
 
