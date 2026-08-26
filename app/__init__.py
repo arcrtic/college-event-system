@@ -54,15 +54,21 @@ def create_app(config_class=Config):
             current_user=current_user(),
         )
 
-    with app.app_context():
-        db.create_all()
+    # NOTE: db.create_all() is deliberately NOT called here synchronously.
+    # It used to run at this point, inside app import, which meant a slow
+    # or not-yet-ready database (common right after a redeploy) could block
+    # worker boot past gunicorn's 30s timeout -> SIGKILL -> app never comes
+    # up at all. Schema creation now happens inside the background seed
+    # thread below instead, where a slow DB just delays seeding, not the
+    # whole app from starting.
 
     # Auto-seed on startup in a background thread. This replaces running
     # `python seed.py` manually via the Render Shell (not available on the
     # free plan). It's non-blocking so a slow/unready database never delays
     # gunicorn binding the port -- seed_data() itself is idempotent (it
-    # skips seeding if data already exists), so this is safe to run on
-    # every boot, including redeploys and worker restarts.
+    # skips seeding if data already exists, and creates the schema first
+    # if it doesn't exist yet), so this is safe to run on every boot,
+    # including redeploys and worker restarts.
     if os.environ.get("AUTO_SEED", "1") == "1":
         import threading
 
