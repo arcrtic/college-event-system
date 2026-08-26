@@ -6,6 +6,14 @@ The system emphasizes robust backend validation, mathematical interval conflict 
 
 ---
 
+## 🚀 Live Demo
+
+**Hosted application:** [https://college-event-system-sz4a.onrender.com](https://college-event-system-sz4a.onrender.com)
+
+> Hosted on Render's free tier — the instance spins down after inactivity, so the first request after a period of idleness may take 30–60 seconds to wake up.
+
+---
+
 ## 🌟 Key Features
 
 ### 1. Event Management Lifecycle
