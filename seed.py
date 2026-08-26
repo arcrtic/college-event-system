@@ -19,9 +19,17 @@ from app.extensions import db
 from app.models import Resource, ResourceType, Event, EventStatus, ResourceRequest, RequestItem, RequestStatus, Allocation
 
 
+import sys
+
+
 def run():
     app = create_app()
     with app.app_context():
+        force_reset = "--reset" in sys.argv
+        if not force_reset and Resource.query.first() is not None:
+            print("[INFO] Database already contains data. Skipping seed. (Use --reset to overwrite)")
+            return
+
         # Clear existing tables for a clean seed reset
         db.drop_all()
         db.create_all()
