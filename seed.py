@@ -19,6 +19,7 @@ from app.extensions import db
 from app.models import Resource, ResourceType, Event, EventStatus, ResourceRequest, RequestItem, RequestStatus, Allocation
 
 
+import os
 import sys
 import time
 
@@ -31,19 +32,39 @@ def seed_data(app):
     where `python seed.py` can't be run manually after deploy).
     """
     with app.app_context():
+        # Log what we're actually connecting to, since "waiting for db"
+        # loops are impossible to debug blind. This intentionally does NOT
+        # print any password that might be embedded in the URI.
+        db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "<unset>")
+        safe_uri = db_uri
+        if "@" in db_uri and "://" in db_uri:
+            scheme, rest = db_uri.split("://", 1)
+            creds_and_host = rest.split("@", 1)
+            if len(creds_and_host) == 2:
+                safe_uri = f"{scheme}://***@{creds_and_host[1]}"
+        print(f"[INFO] Connecting to database: {safe_uri}")
+
         # Retry connecting in case PostgreSQL database is still spinning up
         connected = False
+        last_error = None
         for attempt in range(1, 10):
             try:
                 db.session.execute(db.text("SELECT 1"))
                 connected = True
                 break
             except Exception as e:
-                print(f"[WAIT] Waiting for database to become available (attempt {attempt}/10)...")
+                last_error = e
+                print(f"[WAIT] Attempt {attempt}/10 failed: {e}")
                 time.sleep(2)
 
         if not connected:
-            print("[WARN] Could not connect to database after retries. Continuing...")
+            print("[ERROR] Could not connect to database after retries.")
+            if last_error is not None:
+                print(f"[ERROR] Last error was: {last_error}")
+            print("[HINT] If this is SQLite, check that the 'instance' folder exists "
+                  "and is writable, and that SQLALCHEMY_DATABASE_URI above points where "
+                  "you expect. If this is Postgres, check that the server is running and "
+                  "reachable at that host/port, and that credentials are correct.")
             return
 
         force_reset = "--reset" in sys.argv
@@ -51,8 +72,8 @@ def seed_data(app):
             if not force_reset and Resource.query.first() is not None:
                 print("[INFO] Database already contains data. Skipping seed. (Use --reset to overwrite)")
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] Could not check for existing data (continuing to seed): {e}")
 
         # Clear existing tables for a clean seed reset
         try:
@@ -208,7 +229,15 @@ def seed_data(app):
 
 def run():
     """Standalone entry point: builds its own app, then seeds it.
-    Still usable locally via `python seed.py` / `python seed.py --reset`."""
+    Still usable locally via `python seed.py` / `python seed.py --reset`.
+
+    AUTO_SEED is disabled here before create_app() is called -- otherwise
+    create_app() would *also* spin up its own background seeding thread
+    (the one meant for hosts with no shell access), and that thread would
+    race with this explicit seed_data() call over the same SQLite file,
+    causing spurious "database is locked" retries.
+    """
+    os.environ["AUTO_SEED"] = "0"
     app = create_app()
     seed_data(app)
 

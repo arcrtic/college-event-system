@@ -106,21 +106,27 @@ The system emphasizes robust backend validation, mathematical interval conflict 
 4. **Configure Environment Variables**:
    Copy the example environment configuration:
    ```bash
+   # Windows (PowerShell)
+   Copy-Item .env.example .env
+
+   # macOS / Linux
    cp .env.example .env
    ```
-   *(The default `.env` is already configured for local SQLite operation.)*
+   *(The default `.env` leaves `DATABASE_URL` unset, which is intentional — `config.py` then
+   uses a safe, absolute SQLite path inside `instance/` that works regardless of your OS or
+   the folder you happen to run commands from. You don't need to edit anything to run locally.)*
 
-5. **Initialize and Seed the Database**:
-   Populate the database with campus resources, sample events, and test allocations:
-   ```bash
-   python seed.py
-   ```
-
-6. **Start the Flask Development Server**:
+5. **Start the Flask Development Server**:
    ```bash
    python run.py
    ```
-   Open your browser and navigate to: **`http://127.0.0.1:5000`**
+   The database is created and seeded automatically on first startup (a background thread in
+   `app/__init__.py` runs `seed.py`'s logic once, and skips it on every future run since the
+   data already exists). Open your browser and navigate to: **`http://127.0.0.1:5000`**
+
+   If you'd rather seed explicitly and see the seeding output directly instead of in a
+   background thread, you can run `python seed.py` before `python run.py` — it's optional,
+   not required.
 
 ---
 
