@@ -27,6 +27,13 @@ class Config:
     SQLALCHEMY_DATABASE_URI = _db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # Without this, a Postgres host that's slow to accept connections (e.g.
+    # a free-tier instance still spinning up) can make psycopg2 hang for a
+    # very long time with no feedback. Fail fast instead so retry loops
+    # (see seed.py) actually behave like retries instead of one long hang.
+    if _db_url.startswith("postgresql://"):
+        SQLALCHEMY_ENGINE_OPTIONS = {"connect_args": {"connect_timeout": 5}}
+
     # Shared passcode required to switch into the Admin role in the app's
     # simple role-separation layer (see app/utils/auth.py). This is NOT a
     # real per-user auth system -- change it via .env before any real use.
