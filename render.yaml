@@ -3,7 +3,7 @@ services:
     name: college-event-system
     runtime: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python seed.py && gunicorn run:app"
+    startCommand: "python seed.py ; gunicorn run:app --bind 0.0.0.0:$PORT"
     plan: free
     envVars:
       - key: PYTHON_VERSION
