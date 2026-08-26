@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Admin login{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-1">Switch to Admin</h1>
+<p class="text-sm text-slate-500 mb-6">
+    Enter the admin passcode to manage resources and handle approvals.
+</p>
+
+<form method="post" class="bg-white rounded shadow-sm p-6 space-y-4 max-w-sm">
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <div>
+        <label class="block text-sm font-medium mb-1">Admin passcode</label>
+        <input type="password" name="passcode" autofocus required
+               class="w-full border rounded px-3 py-2 text-sm">
+    </div>
+    <div class="flex gap-3 pt-2">
+        <button class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">
+            Continue as Admin
+        </button>
+        <a href="{{ url_for('dashboard.index') }}" class="text-sm text-slate-500 self-center">Cancel</a>
+    </div>
+</form>
+{% endblock %}

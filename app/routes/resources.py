@@ -1,9 +1,11 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from datetime import datetime, time
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 
 from app.extensions import db
-from app.models import Resource, ResourceType
+from app.models import Resource, ResourceType, Allocation
 from app.utils.validators import ValidationError, require_text, parse_datetime
-from app.utils.booking import booked_quantity
+from app.utils.booking import booked_quantity, find_alternatives, overlaps
+from app.utils.auth import admin_required
 
 resources_bp = Blueprint("resources", __name__, url_prefix="/resources")
 
@@ -40,14 +42,24 @@ def _build_resource_from_form(form):
 @resources_bp.route("/")
 def list_resources():
     """
-    Shows active and inactive resources together (inactive ones are
-    visually muted) rather than hiding inactive resources entirely --
-    an admin needs to see what's been deactivated in order to reactivate it.
+    Shows active and inactive resources with filtering by type, status, and search query.
     """
     type_filter = request.args.get("type", "")
+    status_filter = request.args.get("status", "")
+    search_query = request.args.get("q", "").strip()
+
     query = Resource.query
+
     if type_filter:
         query = query.filter(Resource.type == type_filter)
+
+    if status_filter == "active":
+        query = query.filter(Resource.is_active.is_(True))
+    elif status_filter == "inactive":
+        query = query.filter(Resource.is_active.is_(False))
+
+    if search_query:
+        query = query.filter(Resource.name.ilike(f"%{search_query}%"))
 
     resources = query.order_by(Resource.is_active.desc(), Resource.name.asc()).all()
     return render_template(
@@ -55,10 +67,13 @@ def list_resources():
         resources=resources,
         types=[t.value for t in ResourceType],
         type_filter=type_filter,
+        status_filter=status_filter,
+        search_query=search_query,
     )
 
 
 @resources_bp.route("/new", methods=["GET", "POST"])
+@admin_required
 def create_resource():
     if request.method == "POST":
         try:
@@ -66,7 +81,7 @@ def create_resource():
             resource = Resource(**data)
             db.session.add(resource)
             db.session.commit()
-            flash(f"Resource '{resource.name}' added.", "success")
+            flash(f"Resource '{resource.name}' added successfully.", "success")
             return redirect(url_for("resources.list_resources"))
         except ValidationError as e:
             flash(e.message, "error")
@@ -76,6 +91,7 @@ def create_resource():
 
 
 @resources_bp.route("/<int:resource_id>/edit", methods=["GET", "POST"])
+@admin_required
 def edit_resource(resource_id):
     resource = Resource.query.get_or_404(resource_id)
 
@@ -85,7 +101,7 @@ def edit_resource(resource_id):
             for key, value in data.items():
                 setattr(resource, key, value)
             db.session.commit()
-            flash(f"Resource '{resource.name}' updated.", "success")
+            flash(f"Resource '{resource.name}' updated successfully.", "success")
             return redirect(url_for("resources.list_resources"))
         except ValidationError as e:
             flash(e.message, "error")
@@ -95,14 +111,8 @@ def edit_resource(resource_id):
 
 
 @resources_bp.route("/<int:resource_id>/toggle", methods=["POST"])
+@admin_required
 def toggle_resource(resource_id):
-    """
-    Deactivating a resource (e.g. it broke, or is under maintenance) does
-    NOT touch any existing Allocation rows -- a resource already booked
-    for an approved event stays booked. Deactivation only prevents it from
-    being selected in *new* resource requests (enforced in the booking
-    logic step). This mirrors how a real admin would use this toggle.
-    """
     resource = Resource.query.get_or_404(resource_id)
     resource.is_active = not resource.is_active
     db.session.commit()
@@ -114,46 +124,119 @@ def toggle_resource(resource_id):
 @resources_bp.route("/availability")
 def availability():
     """
-    Section 8 of the assignment explicitly asks for a "Resource
-    availability" page distinct from the plain resource list. The list
-    page (list_resources) shows what exists and whether it's active; this
-    page answers the more useful question an organizer actually has:
-    "how many units of each resource are free during a specific window?"
-
-    It reuses booked_quantity() from utils/booking.py -- the exact same
-    function the request-creation and allocation flows use for conflict
-    checking -- so this page can never disagree with what the booking
-    logic will actually decide.
+    Shows live availability of resources for a selected date or exact datetime window,
+    along with any active bookings/allocations.
     """
     start_dt = end_dt = None
     rows = []
     error = None
 
+    date_raw = request.args.get("date", "")
     start_raw = request.args.get("start_datetime", "")
     end_raw = request.args.get("end_datetime", "")
 
+    # Priority 1: Start and end datetime provided
     if start_raw and end_raw:
         try:
             start_dt = parse_datetime(start_raw, "Start date/time")
             end_dt = parse_datetime(end_raw, "End date/time")
             if end_dt <= start_dt:
-                raise ValidationError("End time must be after the start time.")
+                raise ValidationError("End time must be after start time.")
         except ValidationError as e:
             error = e.message
+    # Priority 2: Single date provided (covers the full 24h day)
+    elif date_raw:
+        try:
+            selected_date = datetime.strptime(date_raw, "%Y-%m-%d").date()
+            start_dt = datetime.combine(selected_date, time(0, 0, 0))
+            end_dt = datetime.combine(selected_date, time(23, 59, 59))
+        except ValueError:
+            error = "Invalid date format."
 
     resources = Resource.query.filter_by(is_active=True).order_by(Resource.type, Resource.name).all()
 
     for resource in resources:
+        allocations_list = []
         if start_dt and end_dt and not error:
             booked = booked_quantity(resource.id, start_dt, end_dt)
-            free = resource.total_quantity - booked
+            free = max(0, resource.total_quantity - booked)
+            
+            # Fetch active overlapping allocations for details display
+            active_allocs = Allocation.query.filter(
+                Allocation.resource_id == resource.id,
+                Allocation.is_active.is_(True),
+            ).all()
+            for alloc in active_allocs:
+                if overlaps(alloc.start_datetime, alloc.end_datetime, start_dt, end_dt):
+                    allocations_list.append(alloc)
         else:
             booked = None
             free = None
-        rows.append({"resource": resource, "booked": booked, "free": free})
+
+        rows.append({
+            "resource": resource,
+            "booked": booked,
+            "free": free,
+            "allocations": allocations_list,
+        })
 
     return render_template(
         "resources/availability.html",
-        rows=rows, start_raw=start_raw, end_raw=end_raw, error=error,
+        rows=rows,
+        date_raw=date_raw,
+        start_raw=start_raw,
+        end_raw=end_raw,
+        error=error,
+        start_dt=start_dt,
+        end_dt=end_dt,
         checked=bool(start_dt and end_dt and not error),
     )
+
+
+@resources_bp.route("/available.json")
+def available_resources_json():
+    """
+    JSON API for dynamic dropdown populating:
+    Returns suitable, active, and unbooked resources for a given type, time window,
+    attendance, and quantity.
+    """
+    required_type = request.args.get("type", "")
+    start_raw = request.args.get("start", "")
+    end_raw = request.args.get("end", "")
+    attendance_raw = request.args.get("attendance", "")
+    qty_raw = request.args.get("qty", "1")
+
+    valid_types = {t.value for t in ResourceType}
+    if required_type not in valid_types or not start_raw or not end_raw:
+        return jsonify([])
+
+    try:
+        start_dt = parse_datetime(start_raw, "Start")
+        end_dt = parse_datetime(end_raw, "End")
+        if end_dt <= start_dt:
+            return jsonify([])
+    except ValidationError:
+        return jsonify([])
+
+    attendance = None
+    if attendance_raw.strip():
+        try:
+            attendance = int(attendance_raw)
+        except ValueError:
+            attendance = None
+
+    try:
+        qty = max(1, int(qty_raw))
+    except (TypeError, ValueError):
+        qty = 1
+
+    candidates = find_alternatives(required_type, attendance, start_dt, end_dt, qty, limit=50)
+    return jsonify([
+        {
+            "id": r.id,
+            "name": r.name,
+            "capacity": r.capacity,
+            "total_quantity": r.total_quantity,
+        }
+        for r in candidates
+    ])

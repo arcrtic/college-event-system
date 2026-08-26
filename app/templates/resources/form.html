@@ -1,45 +1,77 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edit Resource' if resource else 'New Resource' }}{% endblock %}
+{% block title %}{{ 'Edit Resource' if resource else 'Add New Resource' }}{% endblock %}
+
 {% block content %}
-<h1 class="text-2xl font-semibold mb-6">{{ 'Edit Resource' if resource else 'New Resource' }}</h1>
+<div class="space-y-6">
 
-<form method="post" class="bg-white rounded shadow-sm p-6 space-y-4 max-w-md">
+    <!-- Back Navigation -->
     <div>
-        <label class="block text-sm font-medium mb-1">Resource name</label>
-        <input type="text" name="name" required
-               value="{{ form_data.name if form_data else (resource.name if resource else '') }}"
-               class="w-full border rounded px-3 py-2 text-sm">
+        <a href="{{ url_for('resources.list_resources') }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            Back to Resources
+        </a>
     </div>
 
-    <div>
-        <label class="block text-sm font-medium mb-1">Type</label>
-        <select name="type" class="w-full border rounded px-3 py-2 text-sm">
-            {% for t in types %}
-                {% set current = form_data.type if form_data else (resource.type if resource else '') %}
-                <option value="{{ t }}" {{ 'selected' if t == current }}>{{ t }}</option>
-            {% endfor %}
-        </select>
+    <!-- Header -->
+    <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">{{ 'Edit Resource' if resource else 'Add New Resource' }}</h1>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            Configure campus venues (auditoriums, labs) or audiovisual equipment fleets.
+        </p>
     </div>
 
-    <div>
-        <label class="block text-sm font-medium mb-1">Capacity <span class="text-slate-400 font-normal">(optional — leave blank for items like mics/cameras)</span></label>
-        <input type="number" name="capacity" min="1"
-               value="{{ form_data.capacity if form_data else (resource.capacity if resource and resource.capacity else '') }}"
-               class="w-full border rounded px-3 py-2 text-sm">
-    </div>
+    <!-- Form Card -->
+    <form method="post" class="bg-white border border-slate-200 rounded-xl p-5 sm:p-8 shadow-sm space-y-6">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="md:col-span-2">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Resource Name *</label>
+                <input type="text" name="name" required placeholder="e.g. Main Auditorium or Wireless Handheld Mic Set"
+                       value="{{ form_data.name if form_data else (resource.name if resource else '') }}"
+                       class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
 
-    <div>
-        <label class="block text-sm font-medium mb-1">Total units available <span class="text-slate-400 font-normal">(e.g. 5 if you own 5 identical mics)</span></label>
-        <input type="number" name="total_quantity" min="1"
-               value="{{ form_data.total_quantity if form_data else (resource.total_quantity if resource else 1) }}"
-               class="w-full border rounded px-3 py-2 text-sm">
-    </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Category Type *</label>
+                <select name="type" required
+                        class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition">
+                    <option value="">-- Select Type --</option>
+                    {% for t in types %}
+                        <option value="{{ t }}" 
+                            {{ 'selected' if (form_data and form_data.type == t) or (resource and resource.type == t) }}>
+                            {{ t }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
 
-    <div class="flex gap-3 pt-2">
-        <button class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">
-            {{ 'Save changes' if resource else 'Add resource' }}
-        </button>
-        <a href="{{ url_for('resources.list_resources') }}" class="text-sm text-slate-500 self-center">Cancel</a>
-    </div>
-</form>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Audience Seating Capacity</label>
+                <input type="number" name="capacity" min="1" placeholder="e.g. 500 (venues only)"
+                       value="{{ form_data.capacity if form_data else (resource.capacity if resource and resource.capacity else '') }}"
+                       class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition">
+                <p class="text-[11px] text-slate-400 mt-1">Audience capacity for Auditoriums/Labs. Leave blank for equipment.</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Total Quantity (Units) *</label>
+                <input type="number" name="total_quantity" min="1" required placeholder="e.g. 1 for halls, 6 for mics"
+                       value="{{ form_data.total_quantity if form_data else (resource.total_quantity if resource else '1') }}"
+                       class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition">
+                <p class="text-[11px] text-slate-400 mt-1">Total physical units available for bookings.</p>
+            </div>
+        </div>
+
+        <div class="pt-6 border-t border-slate-200 flex items-center justify-end gap-3">
+            <a href="{{ url_for('resources.list_resources') }}" class="px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition">
+                Cancel
+            </a>
+            <button type="submit" 
+                    class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-sm transition">
+                {{ 'Save Changes' if resource else 'Add Resource' }}
+            </button>
+        </div>
+    </form>
+
+</div>
 {% endblock %}

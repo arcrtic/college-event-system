@@ -1,60 +1,223 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edit Event' if event else 'New Event' }}{% endblock %}
+{% block title %}{{ 'Edit Event' if event else 'Create New Event' }}{% endblock %}
+
 {% block content %}
-<h1 class="text-2xl font-semibold mb-6">{{ 'Edit Event' if event else 'New Event' }}</h1>
+<div class="space-y-6">
 
-<form method="post" class="bg-white rounded shadow-sm p-6 space-y-4 max-w-xl">
+    <!-- Back Navigation -->
     <div>
-        <label class="block text-sm font-medium mb-1">Event name</label>
-        <input type="text" name="name" required
-               value="{{ form_data.name if form_data else (event.name if event else '') }}"
-               class="w-full border rounded px-3 py-2 text-sm">
+        <a href="{{ url_for('events.list_events') }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            Back to Events Directory
+        </a>
     </div>
 
-    <div>
-        <label class="block text-sm font-medium mb-1">Organizer</label>
-        <input type="text" name="organizer" required
-               value="{{ form_data.organizer if form_data else (event.organizer if event else '') }}"
-               class="w-full border rounded px-3 py-2 text-sm">
+    <!-- Header -->
+    <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">{{ 'Edit Event' if event else 'Create New Event' }}</h1>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            Specify the schedule, organizer, and attendance. Resources can be attached now or requested later.
+        </p>
     </div>
 
-    <div>
-        <label class="block text-sm font-medium mb-1">Expected attendance</label>
-        <input type="number" name="expected_attendance" min="1" required
-               value="{{ form_data.expected_attendance if form_data else (event.expected_attendance if event else '') }}"
-               class="w-full border rounded px-3 py-2 text-sm">
-    </div>
-
-    <div class="grid grid-cols-2 gap-4">
-        <div>
-            <label class="block text-sm font-medium mb-1">Start date/time</label>
-            <input type="datetime-local" name="start_datetime" required
-                   value="{{ form_data.start_datetime if form_data else (event.start_datetime.strftime('%Y-%m-%dT%H:%M') if event else '') }}"
-                   class="w-full border rounded px-3 py-2 text-sm">
+    <!-- Conflict & Suitability Failure Alert with Alternatives -->
+    {% if item_problems %}
+    <div class="bg-rose-50 border border-rose-200 rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex items-center gap-2.5 text-rose-900 font-bold text-sm">
+            <svg class="w-5 h-5 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Resource Suitability or Availability Conflict</span>
         </div>
-        <div>
-            <label class="block text-sm font-medium mb-1">End date/time</label>
-            <input type="datetime-local" name="end_datetime" required
-                   value="{{ form_data.end_datetime if form_data else (event.end_datetime.strftime('%Y-%m-%dT%H:%M') if event else '') }}"
-                   class="w-full border rounded px-3 py-2 text-sm">
-        </div>
-    </div>
+        <p class="text-xs text-rose-800">
+            Per the all-or-nothing allocation policy, the event could not be scheduled with conflicting resources. Please review the issues and recommended alternatives below:
+        </p>
 
-    <div>
-        <label class="block text-sm font-medium mb-1">Status</label>
-        <select name="status" class="w-full border rounded px-3 py-2 text-sm">
-            {% for s in statuses %}
-                {% set current = form_data.status if form_data else (event.status if event else 'Draft') %}
-                <option value="{{ s }}" {{ 'selected' if s == current }}>{{ s }}</option>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            {% for problem in item_problems %}
+            <div class="bg-white rounded-lg border border-rose-200 p-4 text-xs space-y-2">
+                <div class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                    <span>{{ problem.label }}</span>
+                </div>
+                
+                <ul class="list-disc list-inside text-rose-700 space-y-1 font-medium pl-1">
+                    {% for reason in problem.reasons %}
+                    <li>{{ reason }}</li>
+                    {% endfor %}
+                </ul>
+
+                {% if problem.alternatives %}
+                <div class="mt-3 pt-2.5 border-t border-slate-100">
+                    <p class="font-bold text-emerald-800 text-[11px] uppercase tracking-wider mb-1.5">
+                        Recommended Alternatives:
+                    </p>
+                    <div class="space-y-1.5">
+                        {% for alt in problem.alternatives %}
+                        <div class="p-2 rounded border border-emerald-200 bg-emerald-50/70 flex items-center justify-between text-xs">
+                            <span class="font-bold text-slate-900">{{ alt.name }} ({{ alt.type }}{% if alt.capacity %}, {{ alt.capacity }} seats{% endif %})</span>
+                            <span class="text-[11px] font-bold text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded">Available</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
             {% endfor %}
-        </select>
+        </div>
     </div>
+    {% endif %}
 
-    <div class="flex gap-3 pt-2">
-        <button class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">
-            {{ 'Save changes' if event else 'Create event' }}
-        </button>
-        <a href="{{ url_for('events.list_events') }}" class="text-sm text-slate-500 self-center">Cancel</a>
-    </div>
-</form>
+    <!-- Main Event Form -->
+    <form method="post" class="bg-white border border-slate-200 rounded-xl p-5 sm:p-8 shadow-sm space-y-6">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="md:col-span-2">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Event Name *</label>
+                <input type="text" name="name" required placeholder="e.g. Annual Technical Workshop 2026"
+                       value="{{ form_data.name if form_data else (event.name if event else '') }}"
+                       class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Organizer / Department *</label>
+                <input type="text" name="organizer" required placeholder="e.g. Computer Science Department"
+                       value="{{ form_data.organizer if form_data else (event.organizer if event else '') }}"
+                       class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Expected Attendance *</label>
+                <input type="number" name="expected_attendance" id="expected_attendance" min="1" required placeholder="e.g. 180"
+                       value="{{ form_data.expected_attendance if form_data else (event.expected_attendance if event else '') }}"
+                       class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Start Date & Time *</label>
+                <input type="datetime-local" name="start_datetime" id="start_datetime" required
+                       value="{{ form_data.start_datetime if form_data else (event.start_datetime.strftime('%Y-%m-%dT%H:%M') if event else '') }}"
+                       class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">End Date & Time *</label>
+                <input type="datetime-local" name="end_datetime" id="end_datetime" required
+                       value="{{ form_data.end_datetime if form_data else (event.end_datetime.strftime('%Y-%m-%dT%H:%M') if event else '') }}"
+                       class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+        </div>
+
+        {% if not event %}
+        <!-- Optional Embedded Resources Needed Builder -->
+        <div class="pt-6 border-t border-slate-200 space-y-3">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Resources Needed (Optional)</h3>
+                    <p class="text-xs text-slate-500">Pick required equipment or venues now, or submit requests later.</p>
+                </div>
+                <button type="button" id="add-row" 
+                        class="px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold hover:bg-indigo-100 transition">
+                    + Add Resource
+                </button>
+            </div>
+
+            <div id="rows" class="space-y-2.5 pt-1"></div>
+        </div>
+        {% endif %}
+
+        <!-- Submit Toolbar -->
+        <div class="pt-6 border-t border-slate-200 flex items-center justify-end gap-3">
+            <a href="{{ url_for('events.list_events') }}" class="px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition">
+                Cancel
+            </a>
+            <button type="submit" 
+                    class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-sm transition">
+                {{ 'Save Changes' if event else 'Create Event' }}
+            </button>
+        </div>
+    </form>
+
+</div>
+
+{% if not event %}
+<script>
+const TYPES = {{ resource_types|tojson }};
+const AVAILABLE_URL = "{{ url_for('resources.available_resources_json') }}";
+
+const rowsEl = document.getElementById('rows');
+const startInput = document.getElementById('start_datetime');
+const endInput = document.getElementById('end_datetime');
+const attendanceInput = document.getElementById('expected_attendance');
+
+function typeOptions() {
+    return TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+async function refreshResourceOptions(row) {
+    const typeSelect = row.querySelector('select[name="required_type[]"]');
+    const resourceSelect = row.querySelector('select[name="resource_id[]"]');
+    const qtyInput = row.querySelector('input[name="quantity[]"]');
+
+    const start = startInput.value;
+    const end = endInput.value;
+    if (!start || !end) {
+        resourceSelect.innerHTML = '<option value="">-- Set start/end time first --</option>';
+        return;
+    }
+
+    const params = new URLSearchParams({
+        type: typeSelect.value,
+        start, end,
+        qty: qtyInput.value || '1',
+    });
+    if (attendanceInput.value) params.set('attendance', attendanceInput.value);
+
+    resourceSelect.innerHTML = '<option value="">Checking availability…</option>';
+    try {
+        const res = await fetch(`${AVAILABLE_URL}?${params.toString()}`);
+        const resources = await res.json();
+        if (resources.length === 0) {
+            resourceSelect.innerHTML = `<option value="" disabled selected>No suitable "${typeSelect.value}" available</option>`;
+            return;
+        }
+        resourceSelect.innerHTML = '<option value="">-- Select Available Resource --</option>' +
+            resources.map(r => `<option value="${r.id}">${r.name}${r.capacity ? ` (Cap: ${r.capacity} seats)` : ` (${r.total_quantity} units)`}</option>`).join('');
+    } catch (err) {
+        resourceSelect.innerHTML = '<option value="">Error loading resources</option>';
+    }
+}
+
+function refreshAllRows() {
+    rowsEl.querySelectorAll(':scope > div').forEach(refreshResourceOptions);
+}
+
+function addRow() {
+    const row = document.createElement('div');
+    row.className = 'flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center bg-slate-50 p-3 rounded-lg border border-slate-200';
+    row.innerHTML = `
+        <select name="required_type[]" class="px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium w-full sm:w-44">${typeOptions()}</select>
+        <select name="resource_id[]" class="px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium flex-1">
+            <option value="">-- Set start/end time first --</option>
+        </select>
+        <div class="flex items-center gap-2">
+            <input type="number" name="quantity[]" min="1" value="1" placeholder="Qty" title="Quantity" class="px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium w-20">
+            <button type="button" class="p-2 rounded-lg text-slate-400 hover:text-rose-600 remove-row" title="Remove row">✕</button>
+        </div>
+    `;
+    rowsEl.appendChild(row);
+
+    const typeSelect = row.querySelector('select[name="required_type[]"]');
+    const qtyInput = row.querySelector('input[name="quantity[]"]');
+    typeSelect.addEventListener('change', () => refreshResourceOptions(row));
+    qtyInput.addEventListener('change', () => refreshResourceOptions(row));
+    row.querySelector('.remove-row').addEventListener('click', () => row.remove());
+
+    refreshResourceOptions(row);
+}
+
+document.getElementById('add-row').addEventListener('click', () => addRow());
+startInput.addEventListener('change', refreshAllRows);
+endInput.addEventListener('change', refreshAllRows);
+attendanceInput.addEventListener('change', refreshAllRows);
+</script>
+{% endif %}
 {% endblock %}

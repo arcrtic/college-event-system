@@ -1,3 +1,12 @@
-<h1>404 - Page Not Found</h1>
-<p>The page you're looking for doesn't exist.</p>
-<a href="/">Go home</a>
+{% extends "base.html" %}
+{% block title %}404 - Page Not Found{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto my-12 bg-white border border-slate-200 rounded-lg p-6 text-center space-y-3">
+    <h1 class="text-xl font-bold text-slate-800">404 - Page Not Found</h1>
+    <p class="text-xs text-slate-500">The page you requested does not exist.</p>
+    <a href="{{ url_for('dashboard.index') }}" class="inline-block px-3 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded hover:bg-slate-900">
+        Return to Dashboard
+    </a>
+</div>
+{% endblock %}

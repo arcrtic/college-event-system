@@ -34,14 +34,25 @@ def create_app(config_class=Config):
     from app.routes.requests import requests_bp
     from app.routes.approvals import approvals_bp
     from app.routes.dashboard import dashboard_bp
+    from app.utils.auth import auth_bp
 
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(events_bp)
     app.register_blueprint(resources_bp)
     app.register_blueprint(requests_bp)
     app.register_blueprint(approvals_bp)
+    app.register_blueprint(auth_bp)
 
     register_error_handlers(app)
+
+    @app.context_processor
+    def inject_role():
+        from app.utils.auth import is_admin, current_role, current_user
+        return dict(
+            is_admin=is_admin(),
+            current_role=current_role(),
+            current_user=current_user(),
+        )
 
     with app.app_context():
         db.create_all()

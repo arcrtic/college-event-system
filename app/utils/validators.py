@@ -33,6 +33,18 @@ def validate_event_window(start_dt, end_dt):
         raise ValidationError("Event end time must be after the start time.")
 
 
+def validate_not_in_past(start_dt, field_label="Start date/time"):
+    """
+    Blocks scheduling an event that starts before right now. Only used at
+    event-creation time -- editing/marking an already-past event (e.g. an
+    admin setting it to Completed after the fact) shouldn't be blocked by
+    this, so callers opt in explicitly rather than this being baked into
+    validate_event_window.
+    """
+    if start_dt < datetime.now():
+        raise ValidationError(f"{field_label} cannot be in the past.")
+
+
 def validate_attendance(value):
     try:
         attendance = int(value)

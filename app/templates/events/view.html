@@ -1,53 +1,198 @@
 {% extends "base.html" %}
-{% block title %}{{ event.name }}{% endblock %}
+{% block title %}{{ event.name }} — Event Details{% endblock %}
+
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-semibold">{{ event.name }}</h1>
-    <div class="flex gap-2">
-        <a href="{{ url_for('events.edit_event', event_id=event.id) }}"
-           class="bg-slate-200 text-sm px-4 py-2 rounded hover:bg-slate-300">Edit</a>
-        {% if event.status not in ['Cancelled', 'Completed'] %}
-        <form method="post" action="{{ url_for('events.cancel_event', event_id=event.id) }}"
-              onsubmit="return confirm('Cancel this event?');">
-            <button class="bg-red-100 text-red-700 text-sm px-4 py-2 rounded hover:bg-red-200">Cancel Event</button>
-        </form>
-        {% endif %}
-        <a href="{{ url_for('requests.create_request', event_id=event.id) }}"
-           class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">Request Resources</a>
+<div class="space-y-6">
+
+    <!-- Back Navigation -->
+    <div>
+        <a href="{{ url_for('events.list_events') }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            Back to Events Directory
+        </a>
     </div>
-</div>
 
-<dl class="bg-white rounded shadow-sm p-6 grid grid-cols-2 gap-4 text-sm max-w-xl">
-    <div><dt class="text-slate-500">Organizer</dt><dd class="font-medium">{{ event.organizer }}</dd></div>
-    <div><dt class="text-slate-500">Status</dt><dd class="font-medium">{{ event.status }}</dd></div>
-    <div><dt class="text-slate-500">Expected attendance</dt><dd class="font-medium">{{ event.expected_attendance }}</dd></div>
-    <div><dt class="text-slate-500">Start</dt><dd class="font-medium">{{ event.start_datetime.strftime('%d %b %Y, %H:%M') }}</dd></div>
-    <div><dt class="text-slate-500">End</dt><dd class="font-medium">{{ event.end_datetime.strftime('%d %b %Y, %H:%M') }}</dd></div>
-</dl>
+    <!-- Header Card -->
+    <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex flex-wrap items-center gap-3">
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{{ event.name }}</h1>
+                <span class="px-3 py-1 rounded-full text-xs font-bold
+                    {% if event.status == 'Approved' %} bg-emerald-100 text-emerald-800 border border-emerald-200
+                    {% elif event.status == 'Pending' %} bg-amber-100 text-amber-800 border border-amber-200
+                    {% elif event.status == 'Completed' %} bg-blue-100 text-blue-800 border border-blue-200
+                    {% elif event.status == 'Draft' %} bg-slate-100 text-slate-700 border border-slate-200
+                    {% else %} bg-rose-100 text-rose-800 border border-rose-200 {% endif %}">
+                    {{ event.status }}
+                </span>
+            </div>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">Organized by <strong class="text-slate-800">{{ event.organizer }}</strong></p>
+        </div>
 
-<h2 class="text-lg font-semibold mt-8 mb-3">Resource Requests</h2>
-<div class="bg-white rounded shadow-sm overflow-hidden">
-    <table class="w-full text-sm">
-        <thead class="bg-slate-100 text-left text-slate-500">
-            <tr>
-                <th class="px-4 py-2">Window</th>
-                <th class="px-4 py-2">Resources</th>
-                <th class="px-4 py-2">Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for req in event.requests %}
-            <tr class="border-t hover:bg-slate-50 cursor-pointer" onclick="window.location='{{ url_for('requests.view_request', request_id=req.id) }}'">
-                <td class="px-4 py-2">{{ req.start_datetime.strftime('%d %b, %H:%M') }} - {{ req.end_datetime.strftime('%H:%M') }}</td>
-                <td class="px-4 py-2">
-                    {% for item in req.items %}{{ item.quantity }}x {{ item.resource.name }}{{ ', ' if not loop.last }}{% endfor %}
-                </td>
-                <td class="px-4 py-2">{{ req.status }}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="3" class="px-4 py-6 text-center text-slate-400">No resource requests yet.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+        <!-- Action Toolbar -->
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+            {% if event.is_editable %}
+            <a href="{{ url_for('events.edit_event', event_id=event.id) }}" 
+               class="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition">
+                Edit Event
+            </a>
+            {% endif %}
+
+            {% if event.is_cancellable %}
+            <form method="post" action="{{ url_for('events.cancel_event', event_id=event.id) }}"
+                  onsubmit="return confirm('Cancel this event? All associated resource requests will be cancelled and resources released.');" class="inline">
+                <button type="submit" 
+                        class="px-3.5 py-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold transition">
+                    Cancel Event
+                </button>
+            </form>
+            {% endif %}
+
+            {% if is_admin and event.status in ['Approved', 'Pending'] %}
+            <form method="post" action="{{ url_for('events.complete_event', event_id=event.id) }}"
+                  onsubmit="return confirm('Mark this event as Completed?');" class="inline">
+                <button type="submit" 
+                        class="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-semibold transition">
+                    Mark Completed
+                </button>
+            </form>
+            {% endif %}
+
+            {% if event.status not in ['Cancelled', 'Completed'] %}
+            <a href="{{ url_for('requests.create_request', event_id=event.id) }}" 
+               class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Request Resources
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Metadata & Workflow Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Metadata -->
+        <div class="lg:col-span-2 bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
+            <h2 class="font-bold text-slate-900 text-sm uppercase tracking-wider mb-4">Event Details</h2>
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-xs sm:text-sm">
+                <div>
+                    <dt class="font-semibold text-slate-400 uppercase tracking-wider text-[11px]">Start Date & Time</dt>
+                    <dd class="font-bold text-slate-900 mt-1">{{ event.formatted_start }}</dd>
+                </div>
+                <div>
+                    <dt class="font-semibold text-slate-400 uppercase tracking-wider text-[11px]">End Date & Time</dt>
+                    <dd class="font-bold text-slate-900 mt-1">{{ event.formatted_end }}</dd>
+                </div>
+                <div>
+                    <dt class="font-semibold text-slate-400 uppercase tracking-wider text-[11px]">Expected Attendance</dt>
+                    <dd class="font-bold text-slate-900 mt-1">{{ event.expected_attendance }} Attendees</dd>
+                </div>
+                <div>
+                    <dt class="font-semibold text-slate-400 uppercase tracking-wider text-[11px]">Created Date</dt>
+                    <dd class="font-medium text-slate-600 mt-1">{{ event.created_at.strftime('%d %b %Y, %I:%M %p') }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Status Lifecycle -->
+        <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
+            <h2 class="font-bold text-slate-900 text-sm uppercase tracking-wider mb-4">Status Lifecycle</h2>
+            <div class="space-y-2">
+                {% set steps = [
+                    ('Draft', 'Initial event record'),
+                    ('Pending', 'Resource request submitted'),
+                    ('Approved', 'Admin approved & allocated'),
+                    ('Completed', 'Event concluded')
+                ] %}
+                
+                {% for st, desc in steps %}
+                <div class="flex items-center justify-between p-2.5 rounded-lg text-xs {{ 'bg-indigo-50 border border-indigo-200 font-bold text-indigo-900' if event.status == st else 'bg-slate-50 text-slate-500' }}">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full {{ 'bg-indigo-600' if event.status == st else 'bg-slate-300' }}"></span>
+                        <span>{{ st }}</span>
+                    </div>
+                    {% if event.status == st %}
+                    <span class="text-[10px] font-bold text-indigo-700 bg-indigo-200/70 px-2 py-0.5 rounded uppercase">Current</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                {% if event.status in ['Rejected', 'Cancelled'] %}
+                <div class="flex items-center justify-between p-2.5 rounded-lg text-xs bg-rose-50 border border-rose-200 font-bold text-rose-900 mt-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-rose-600"></span>
+                        <span>{{ event.status }}</span>
+                    </div>
+                    <span class="text-[10px] font-bold text-rose-700 bg-rose-200/70 px-2 py-0.5 rounded uppercase">Current</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Associated Resource Requests Table -->
+    <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div class="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/75">
+            <div class="flex items-center gap-2">
+                <h2 class="font-bold text-slate-900 text-sm sm:text-base">Resource Requests for this Event</h2>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-800">{{ event.requests|length }}</span>
+            </div>
+            {% if event.status not in ['Cancelled', 'Completed'] %}
+            <a href="{{ url_for('requests.create_request', event_id=event.id) }}" class="text-xs font-bold text-indigo-600 hover:underline">
+                + New Request
+            </a>
+            {% endif %}
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+                <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                    <tr>
+                        <th class="px-5 py-3">Usage Window</th>
+                        <th class="px-5 py-3">Requested Resources</th>
+                        <th class="px-5 py-3 text-center">Status</th>
+                        <th class="px-5 py-3 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for req in event.requests %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="px-5 py-3.5 font-medium text-slate-900 text-xs">{{ req.formatted_window }}</td>
+                        <td class="px-5 py-3.5">
+                            <div class="flex flex-wrap gap-1.5">
+                                {% for item in req.items %}
+                                <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200">
+                                    {{ item.quantity }}x {{ item.resource.name }} ({{ item.resource.type }})
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-5 py-3.5 text-center">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold
+                                {% if req.status == 'Allocated' or req.status == 'Approved' %} bg-emerald-100 text-emerald-800 border border-emerald-200
+                                {% elif req.status == 'Pending' %} bg-amber-100 text-amber-800 border border-amber-200
+                                {% else %} bg-rose-100 text-rose-800 border border-rose-200 {% endif %}">
+                                {{ req.status }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-3.5 text-right">
+                            <a href="{{ url_for('requests.view_request', request_id=req.id) }}" class="text-xs font-bold text-indigo-600 hover:underline">
+                                View Details →
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="px-5 py-8 text-center text-slate-400 text-xs sm:text-sm">
+                            No resource requests submitted for this event yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

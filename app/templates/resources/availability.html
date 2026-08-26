@@ -1,67 +1,146 @@
 {% extends "base.html" %}
 {% block title %}Resource Availability{% endblock %}
+
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-semibold">Resource Availability</h1>
-    <a href="{{ url_for('resources.list_resources') }}" class="text-sm text-slate-500 underline">All resources</a>
-</div>
+<div class="space-y-6">
 
-<form method="get" class="flex gap-3 mb-6 items-end">
-    <div>
-        <label class="block text-xs text-slate-500 mb-1">Start date/time</label>
-        <input type="datetime-local" name="start_datetime" value="{{ start_raw }}" class="border rounded px-2 py-1.5 text-sm">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Resource Availability Checker</h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                Inspect live unit availability and existing bookings across campus venues and equipment.
+            </p>
+        </div>
+        <a href="{{ url_for('resources.list_resources') }}" class="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-indigo-600 transition">
+            View All Resources →
+        </a>
     </div>
-    <div>
-        <label class="block text-xs text-slate-500 mb-1">End date/time</label>
-        <input type="datetime-local" name="end_datetime" value="{{ end_raw }}" class="border rounded px-2 py-1.5 text-sm">
+
+    <!-- Filter Card -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm">
+        <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4 items-end text-xs">
+            <div class="lg:col-span-4">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Check Full Day Date</label>
+                <input type="date" name="date" value="{{ date_raw }}"
+                       class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <div class="lg:col-span-3">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Or Specific Start Time</label>
+                <input type="datetime-local" name="start_datetime" value="{{ start_raw }}"
+                       class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <div class="lg:col-span-3">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Specific End Time</label>
+                <input type="datetime-local" name="end_datetime" value="{{ end_raw }}"
+                       class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <div class="lg:col-span-2">
+                <button type="submit" 
+                        class="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition">
+                    Check Status
+                </button>
+            </div>
+        </form>
+
+        {% if error %}
+        <p class="text-xs text-rose-600 font-semibold mt-3">{{ error }}</p>
+        {% endif %}
     </div>
-    <button class="bg-slate-900 text-white text-sm px-4 py-1.5 rounded hover:bg-slate-700">Check availability</button>
-</form>
 
-{% if error %}
-<div class="mb-6 px-4 py-3 rounded text-sm bg-red-100 text-red-800 border border-red-200">{{ error }}</div>
-{% endif %}
-
-{% if not checked %}
-<p class="text-sm text-slate-500 mb-4">Pick a start and end time above to see how many units of each resource are free during that window. Showing all active resources below.</p>
-{% endif %}
-
-<div class="bg-white rounded shadow-sm overflow-hidden">
-    <table class="w-full text-sm">
-        <thead class="bg-slate-100 text-left text-slate-500">
-            <tr>
-                <th class="px-4 py-2">Resource</th>
-                <th class="px-4 py-2">Type</th>
-                <th class="px-4 py-2">Capacity</th>
-                <th class="px-4 py-2">Total units</th>
-                {% if checked %}
-                <th class="px-4 py-2">Free in window</th>
-                <th class="px-4 py-2"></th>
+    <!-- Active Filter Info -->
+    {% if checked %}
+    <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs sm:text-sm font-semibold text-indigo-950 flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0"></span>
+        <span>
+            Showing real-time availability for: 
+            <strong class="text-indigo-900">
+                {% if start_dt and end_dt %}
+                    {{ start_dt.strftime('%A, %d %B %Y · %I:%M %p') }} – {{ end_dt.strftime('%I:%M %p') }}
+                {% else %}
+                    {{ date_raw }}
                 {% endif %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in rows %}
-            <tr class="border-t">
-                <td class="px-4 py-2 font-medium">{{ row.resource.name }}</td>
-                <td class="px-4 py-2">{{ row.resource.type }}</td>
-                <td class="px-4 py-2">{{ row.resource.capacity if row.resource.capacity else '—' }}</td>
-                <td class="px-4 py-2">{{ row.resource.total_quantity }}</td>
+            </strong>
+        </span>
+    </div>
+    {% else %}
+    <p class="text-xs text-slate-500">Pick a calendar date or exact start/end window above to query live unit counts and current bookings.</p>
+    {% endif %}
+
+    <!-- Resource Cards Grid (Responsive 1-col on mobile, 2-col on md, 3-col on xl) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        {% for row in rows %}
+        {% set r = row.resource %}
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow transition flex flex-col justify-between space-y-4">
+            
+            <div class="space-y-2">
+                <div class="flex items-start justify-between gap-2">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base leading-snug">{{ r.name }}</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            {{ r.type }}{% if r.capacity %} · <span class="font-semibold text-slate-700">{{ r.capacity }} seats capacity</span>{% endif %}
+                        </p>
+                    </div>
+
+                    {% if checked %}
+                        {% if row.free == r.total_quantity %}
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                            Available ({{ row.free }}/{{ r.total_quantity }})
+                        </span>
+                        {% elif row.free > 0 %}
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                            Partially Booked ({{ row.free }}/{{ r.total_quantity }})
+                        </span>
+                        {% else %}
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200 shrink-0">
+                            Fully Booked (0/{{ r.total_quantity }})
+                        </span>
+                        {% endif %}
+                    {% else %}
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                            {{ r.total_quantity }} unit{{ 's' if r.total_quantity != 1 }}
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Active Bookings During Window -->
+            <div class="pt-3 border-t border-slate-100 text-xs">
                 {% if checked %}
-                <td class="px-4 py-2 font-medium {{ 'text-green-700' if row.free > 0 else 'text-red-600' }}">
-                    {{ row.free }} / {{ row.resource.total_quantity }}
-                </td>
-                <td class="px-4 py-2">
-                    <span class="px-2 py-0.5 rounded text-xs {{ 'bg-green-100 text-green-700' if row.free > 0 else 'bg-red-100 text-red-700' }}">
-                        {{ 'Available' if row.free > 0 else 'Fully booked' }}
-                    </span>
-                </td>
+                    {% if row.allocations %}
+                        <p class="font-bold text-slate-700 uppercase tracking-wider text-[10px] mb-2">Active Bookings in Window:</p>
+                        <div class="space-y-1.5">
+                            {% for alloc in row.allocations %}
+                            <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-200 text-slate-700">
+                                <div class="font-bold text-slate-900 text-xs truncate">{{ alloc.event.name }}</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5 flex justify-between">
+                                    <span>{{ alloc.start_datetime.strftime('%I:%M %p') }} – {{ alloc.end_datetime.strftime('%I:%M %p') }}</span>
+                                    <span class="font-semibold text-slate-800">{{ alloc.quantity }} unit(s)</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-slate-400 text-center py-1">No bookings during this time window.</p>
+                    {% endif %}
+                {% else %}
+                    <div class="flex items-center justify-between text-slate-500 text-xs">
+                        <span>Total units available in inventory:</span>
+                        <span class="font-bold text-slate-800">{{ r.total_quantity }}</span>
+                    </div>
                 {% endif %}
-            </tr>
-            {% else %}
-            <tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No active resources.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </div>
+
+        </div>
+        {% else %}
+        <div class="col-span-full bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400">
+            No active resources found in catalog.
+        </div>
+        {% endfor %}
+    </div>
+
 </div>
 {% endblock %}

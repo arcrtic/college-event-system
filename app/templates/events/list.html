@@ -1,66 +1,126 @@
 {% extends "base.html" %}
 {% block title %}Events{% endblock %}
+
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-semibold">Events</h1>
-    <a href="{{ url_for('events.create_event') }}"
-       class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">+ New Event</a>
-</div>
+<div class="space-y-6">
 
-<form method="get" class="flex gap-3 mb-6 items-end">
-    <div>
-        <label class="block text-xs text-slate-500 mb-1">Status</label>
-        <select name="status" class="border rounded px-2 py-1.5 text-sm">
-            <option value="">All</option>
-            {% for s in statuses %}
-                <option value="{{ s }}" {{ 'selected' if s == status_filter }}>{{ s }}</option>
-            {% endfor %}
-        </select>
+    <!-- Header & Action -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Events Directory</h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                Browse, search, and manage all scheduled college events and workshops.
+            </p>
+        </div>
+        <a href="{{ url_for('events.create_event') }}" 
+           class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Create New Event
+        </a>
     </div>
-    <div>
-        <label class="block text-xs text-slate-500 mb-1">Date</label>
-        <input type="date" name="date" value="{{ date_filter }}" class="border rounded px-2 py-1.5 text-sm">
-    </div>
-    <button class="bg-slate-200 text-sm px-4 py-1.5 rounded hover:bg-slate-300">Filter</button>
-    {% if status_filter or date_filter %}
-        <a href="{{ url_for('events.list_events') }}" class="text-sm text-slate-500 underline">Clear</a>
-    {% endif %}
-</form>
 
-<div class="bg-white rounded shadow-sm overflow-hidden">
-    <table class="w-full text-sm">
-        <thead class="bg-slate-100 text-left text-slate-500">
-            <tr>
-                <th class="px-4 py-2">Name</th>
-                <th class="px-4 py-2">Organizer</th>
-                <th class="px-4 py-2">Attendance</th>
-                <th class="px-4 py-2">Start</th>
-                <th class="px-4 py-2">End</th>
-                <th class="px-4 py-2">Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for event in events %}
-            <tr class="border-t hover:bg-slate-50 cursor-pointer" onclick="window.location='{{ url_for('events.view_event', event_id=event.id) }}'">
-                <td class="px-4 py-2 font-medium">{{ event.name }}</td>
-                <td class="px-4 py-2">{{ event.organizer }}</td>
-                <td class="px-4 py-2">{{ event.expected_attendance }}</td>
-                <td class="px-4 py-2">{{ event.start_datetime.strftime('%d %b %Y, %H:%M') }}</td>
-                <td class="px-4 py-2">{{ event.end_datetime.strftime('%d %b %Y, %H:%M') }}</td>
-                <td class="px-4 py-2">
-                    <span class="px-2 py-0.5 rounded text-xs
-                        {% if event.status == 'Approved' %} bg-green-100 text-green-700
-                        {% elif event.status == 'Rejected' or event.status == 'Cancelled' %} bg-red-100 text-red-700
-                        {% elif event.status == 'Pending' %} bg-amber-100 text-amber-700
-                        {% else %} bg-slate-100 text-slate-600 {% endif %}">
-                        {{ event.status }}
-                    </span>
-                </td>
-            </tr>
-            {% else %}
-            <tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No events found.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <!-- Filter & Search Card -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm">
+        <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4 items-end text-xs">
+            <!-- Search Keyword -->
+            <div class="sm:col-span-2 lg:col-span-5">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Search Name / Organizer</label>
+                <input type="text" name="q" value="{{ search_query }}" placeholder="e.g. Technical Workshop, CS Dept..."
+                       class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <!-- Status Filter -->
+            <div class="lg:col-span-3">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Event Status</label>
+                <select name="status" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+                    <option value="">All Statuses</option>
+                    {% for s in statuses %}
+                        <option value="{{ s }}" {{ 'selected' if s == status_filter }}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Date Filter -->
+            <div class="lg:col-span-2">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Date</label>
+                <input type="date" name="date" value="{{ date_filter }}"
+                       class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="lg:col-span-2 flex items-center gap-2">
+                <button type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition">
+                    Apply Filter
+                </button>
+                {% if status_filter or date_filter or search_query %}
+                <a href="{{ url_for('events.list_events') }}" class="py-2.5 px-3 border border-slate-300 text-slate-600 hover:bg-slate-50 font-semibold rounded-lg text-xs transition text-center">
+                    Clear
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Events Table Card (Full Width with Horizontal Scroll on Small Screens) -->
+    <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+                <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                    <tr>
+                        <th class="px-5 py-3.5">Event Name</th>
+                        <th class="px-5 py-3.5">Organizer</th>
+                        <th class="px-5 py-3.5">Schedule</th>
+                        <th class="px-5 py-3.5">Attendance</th>
+                        <th class="px-5 py-3.5 text-center">Status</th>
+                        <th class="px-5 py-3.5 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for event in events %}
+                    <tr class="hover:bg-slate-50/80 transition group">
+                        <td class="px-5 py-4">
+                            <a href="{{ url_for('events.view_event', event_id=event.id) }}" class="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                {{ event.name }}
+                            </a>
+                            <div class="text-[11px] text-slate-400">Event ID #{{ event.id }}</div>
+                        </td>
+                        <td class="px-5 py-4 text-slate-700 font-medium">{{ event.organizer }}</td>
+                        <td class="px-5 py-4 text-slate-500 text-xs">{{ event.formatted_window }}</td>
+                        <td class="px-5 py-4 text-slate-800 font-semibold">{{ event.expected_attendance }} <span class="text-xs text-slate-400 font-normal">attendees</span></td>
+                        <td class="px-5 py-4 text-center">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold
+                                {% if event.status == 'Approved' %} bg-emerald-100 text-emerald-800 border border-emerald-200
+                                {% elif event.status == 'Pending' %} bg-amber-100 text-amber-800 border border-amber-200
+                                {% elif event.status == 'Completed' %} bg-blue-100 text-blue-800 border border-blue-200
+                                {% elif event.status == 'Draft' %} bg-slate-100 text-slate-700 border border-slate-200
+                                {% else %} bg-rose-100 text-rose-800 border border-rose-200 {% endif %}">
+                                {{ event.status }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-4 text-right space-x-3">
+                            <a href="{{ url_for('events.view_event', event_id=event.id) }}" class="text-xs font-bold text-indigo-600 hover:text-indigo-800">
+                                View Details
+                            </a>
+                            {% if event.is_editable %}
+                            <span class="text-slate-300">·</span>
+                            <a href="{{ url_for('events.edit_event', event_id=event.id) }}" class="text-xs font-medium text-slate-500 hover:text-slate-800">
+                                Edit
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="px-5 py-12 text-center text-slate-400">
+                            <p class="text-sm font-semibold text-slate-600">No events found matching your search filters.</p>
+                            <p class="text-xs text-slate-400 mt-1">Try clearing filters or creating a new event.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

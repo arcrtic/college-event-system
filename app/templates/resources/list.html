@@ -1,63 +1,146 @@
 {% extends "base.html" %}
-{% block title %}Resources{% endblock %}
+{% block title %}Campus Resources{% endblock %}
+
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-semibold">Resources</h1>
-    <a href="{{ url_for('resources.create_resource') }}"
-       class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">+ New Resource</a>
-</div>
+<div class="space-y-6">
 
-<form method="get" class="flex gap-3 mb-6 items-end">
-    <div>
-        <label class="block text-xs text-slate-500 mb-1">Type</label>
-        <select name="type" class="border rounded px-2 py-1.5 text-sm">
-            <option value="">All</option>
-            {% for t in types %}
-                <option value="{{ t }}" {{ 'selected' if t == type_filter }}>{{ t }}</option>
-            {% endfor %}
-        </select>
+    <!-- Header & Action -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Campus Resource Catalog</h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                Manage auditoriums, seminar halls, computer/electronics laboratories, and AV equipment fleets.
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('resources.availability') }}" 
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold shadow-sm transition">
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                Check Availability
+            </a>
+            {% if is_admin %}
+            <a href="{{ url_for('resources.create_resource') }}" 
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add Resource
+            </a>
+            {% endif %}
+        </div>
     </div>
-    <button class="bg-slate-200 text-sm px-4 py-1.5 rounded hover:bg-slate-300">Filter</button>
-    {% if type_filter %}
-        <a href="{{ url_for('resources.list_resources') }}" class="text-sm text-slate-500 underline">Clear</a>
-    {% endif %}
-</form>
 
-<div class="bg-white rounded shadow-sm overflow-hidden">
-    <table class="w-full text-sm">
-        <thead class="bg-slate-100 text-left text-slate-500">
-            <tr>
-                <th class="px-4 py-2">Name</th>
-                <th class="px-4 py-2">Type</th>
-                <th class="px-4 py-2">Capacity</th>
-                <th class="px-4 py-2">Units</th>
-                <th class="px-4 py-2">Status</th>
-                <th class="px-4 py-2"></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for resource in resources %}
-            <tr class="border-t {{ 'opacity-50' if not resource.is_active }}">
-                <td class="px-4 py-2 font-medium">{{ resource.name }}</td>
-                <td class="px-4 py-2">{{ resource.type }}</td>
-                <td class="px-4 py-2">{{ resource.capacity if resource.capacity else '—' }}</td>
-                <td class="px-4 py-2">{{ resource.total_quantity }}</td>
-                <td class="px-4 py-2">
-                    <span class="px-2 py-0.5 rounded text-xs {{ 'bg-green-100 text-green-700' if resource.is_active else 'bg-slate-200 text-slate-600' }}">
-                        {{ 'Active' if resource.is_active else 'Inactive' }}
-                    </span>
-                </td>
-                <td class="px-4 py-2 text-right space-x-3">
-                    <a href="{{ url_for('resources.edit_resource', resource_id=resource.id) }}" class="text-slate-500 hover:underline">Edit</a>
-                    <form method="post" action="{{ url_for('resources.toggle_resource', resource_id=resource.id) }}" class="inline">
-                        <button class="text-slate-500 hover:underline">{{ 'Deactivate' if resource.is_active else 'Activate' }}</button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">No resources found.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <!-- Filter & Search Card -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm">
+        <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4 items-end text-xs">
+            <div class="sm:col-span-2 lg:col-span-5">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Search Resource Name</label>
+                <input type="text" name="q" value="{{ search_query }}" placeholder="e.g. Main Auditorium, Computer Lab 1..."
+                       class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+            </div>
+
+            <div class="lg:col-span-3">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Resource Type</label>
+                <select name="type" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+                    <option value="">All Types</option>
+                    {% for t in types %}
+                        <option value="{{ t }}" {{ 'selected' if t == type_filter }}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="lg:col-span-2">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Status</label>
+                <select name="status" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+                    <option value="">All Statuses</option>
+                    <option value="active" {{ 'selected' if status_filter == 'active' }}>Active Only</option>
+                    <option value="inactive" {{ 'selected' if status_filter == 'inactive' }}>Inactive Only</option>
+                </select>
+            </div>
+
+            <div class="lg:col-span-2 flex items-center gap-2">
+                <button type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition">
+                    Filter
+                </button>
+                {% if type_filter or status_filter or search_query %}
+                <a href="{{ url_for('resources.list_resources') }}" class="py-2.5 px-3 border border-slate-300 text-slate-600 hover:bg-slate-50 font-semibold rounded-lg text-xs transition text-center">
+                    Clear
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Table Card -->
+    <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+                <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                    <tr>
+                        <th class="px-5 py-3.5">Resource Name</th>
+                        <th class="px-5 py-3.5">Category Type</th>
+                        <th class="px-5 py-3.5">Capacity</th>
+                        <th class="px-5 py-3.5">Total Quantity</th>
+                        <th class="px-5 py-3.5 text-center">Status</th>
+                        {% if is_admin %}
+                        <th class="px-5 py-3.5 text-right">Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for resource in resources %}
+                    <tr class="hover:bg-slate-50 transition {{ 'opacity-60 bg-slate-50/50' if not resource.is_active }}">
+                        <td class="px-5 py-4">
+                            <span class="font-bold text-slate-900">{{ resource.name }}</span>
+                            <div class="text-[11px] text-slate-400">Resource ID #{{ resource.id }}</div>
+                        </td>
+                        <td class="px-5 py-4">
+                            <span class="px-2.5 py-1 rounded-lg text-xs font-semibold
+                                {% if resource.type == 'Auditorium' %} bg-indigo-50 text-indigo-700 border border-indigo-200
+                                {% elif resource.type == 'Laboratory' %} bg-cyan-50 text-cyan-700 border border-cyan-200
+                                {% elif resource.type == 'Projector' %} bg-amber-50 text-amber-700 border border-amber-200
+                                {% elif resource.type == 'Microphone' %} bg-violet-50 text-violet-700 border border-violet-200
+                                {% elif resource.type == 'Camera' %} bg-rose-50 text-rose-700 border border-rose-200
+                                {% else %} bg-slate-100 text-slate-700 border border-slate-200 {% endif %}">
+                                {{ resource.type }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-4 text-slate-700 font-medium">
+                            {% if resource.capacity %}
+                                <span class="font-bold text-slate-900">{{ resource.capacity }}</span> <span class="text-xs text-slate-400">seats</span>
+                            {% else %}
+                                <span class="text-slate-300">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-4 text-slate-800 font-semibold">
+                            {{ resource.total_quantity }} <span class="text-xs text-slate-400 font-normal">unit{{ 's' if resource.total_quantity != 1 }}</span>
+                        </td>
+                        <td class="px-5 py-4 text-center">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold {{ 'bg-emerald-100 text-emerald-800 border border-emerald-200' if resource.is_active else 'bg-slate-200 text-slate-700 border border-slate-300' }}">
+                                {{ 'Active' if resource.is_active else 'Inactive' }}
+                            </span>
+                        </td>
+                        {% if is_admin %}
+                        <td class="px-5 py-4 text-right space-x-3">
+                            <a href="{{ url_for('resources.edit_resource', resource_id=resource.id) }}" class="text-xs font-bold text-indigo-600 hover:text-indigo-800">
+                                Edit
+                            </a>
+                            <span class="text-slate-300">·</span>
+                            <form method="post" action="{{ url_for('resources.toggle_resource', resource_id=resource.id) }}" class="inline">
+                                <button type="submit" class="text-xs font-semibold {{ 'text-rose-600 hover:text-rose-800' if resource.is_active else 'text-emerald-600 hover:text-emerald-800' }}">
+                                    {{ 'Deactivate' if resource.is_active else 'Activate' }}
+                                </button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="px-5 py-12 text-center text-slate-400">No resources found matching the criteria.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

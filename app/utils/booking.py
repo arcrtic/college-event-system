@@ -120,3 +120,52 @@ def find_alternatives(required_type, expected_attendance, start_dt, end_dt, requ
 
     suitable.sort(key=lambda r: (r.capacity if r.capacity is not None else 0, r.name))
     return suitable[:limit]
+
+
+def validate_request_rows(rows, expected_attendance, start_dt, end_dt):
+    """
+    Shared by resource-request creation AND the "resources needed" section
+    on event creation, so both entry points enforce identical rules
+    instead of two hand-maintained copies of the same checks.
+
+    `rows` is a list of (required_type, resource_id, quantity_raw) tuples,
+    already stripped of rows where nothing was picked.
+
+    Returns (validated_items, item_problems):
+      - validated_items: [(Resource, qty), ...] ready to save.
+      - item_problems: [{label, reasons, alternatives}, ...] for anything
+        that failed -- collected across ALL rows in one pass (not just the
+        first failure) so the UI can show everything wrong at once, and
+        so the caller can enforce all-or-nothing: if item_problems is
+        non-empty, nothing should be saved.
+    """
+    validated_items = []
+    item_problems = []
+
+    for required_type, resource_id, qty_raw in rows:
+        resource = Resource.query.get(resource_id)
+        if resource is None:
+            item_problems.append({"label": f"Resource #{resource_id}", "reasons": ["This resource no longer exists."], "alternatives": []})
+            continue
+
+        try:
+            qty = int(qty_raw)
+            if qty <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            item_problems.append({"label": resource.name, "reasons": ["Quantity must be a positive whole number."], "alternatives": []})
+            continue
+
+        reasons = check_suitability(resource, required_type, expected_attendance)
+        reasons += check_availability(resource, start_dt, end_dt, qty)
+
+        if reasons:
+            alternatives = find_alternatives(
+                required_type, expected_attendance, start_dt, end_dt, qty,
+                exclude_resource_id=resource.id,
+            )
+            item_problems.append({"label": resource.name, "reasons": reasons, "alternatives": alternatives})
+        else:
+            validated_items.append((resource, qty))
+
+    return validated_items, item_problems
