@@ -20,19 +20,42 @@ from app.models import Resource, ResourceType, Event, EventStatus, ResourceReque
 
 
 import sys
+import time
 
 
 def run():
     app = create_app()
     with app.app_context():
-        force_reset = "--reset" in sys.argv
-        if not force_reset and Resource.query.first() is not None:
-            print("[INFO] Database already contains data. Skipping seed. (Use --reset to overwrite)")
+        # Retry connecting in case PostgreSQL database is still spinning up
+        connected = False
+        for attempt in range(1, 10):
+            try:
+                db.session.execute(db.text("SELECT 1"))
+                connected = True
+                break
+            except Exception as e:
+                print(f"[WAIT] Waiting for database to become available (attempt {attempt}/10)...")
+                time.sleep(2)
+
+        if not connected:
+            print("[WARN] Could not connect to database after retries. Continuing...")
             return
 
+        force_reset = "--reset" in sys.argv
+        try:
+            if not force_reset and Resource.query.first() is not None:
+                print("[INFO] Database already contains data. Skipping seed. (Use --reset to overwrite)")
+                return
+        except Exception:
+            pass
+
         # Clear existing tables for a clean seed reset
-        db.drop_all()
-        db.create_all()
+        try:
+            db.drop_all()
+            db.create_all()
+        except Exception as e:
+            print(f"[ERROR] Database creation error: {e}")
+            return
 
         print("Seeding campus resources...")
         resources = [
