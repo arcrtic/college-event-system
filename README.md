@@ -1,6 +1,6 @@
 # CampusAlloc — College Event Resource Allocation System
 
-CampusAlloc is an enterprise-grade web application built with **Flask**, **SQLAlchemy**, **SQLite**, and **Tailwind CSS** that enables colleges and universities to manage campus events and shared physical resources (auditoriums, seminar halls, computer/electronics laboratories, projectors, microphones, cameras, and computing equipment fleets).
+CampusAlloc is an enterprise-grade web application built with **Flask**, **SQLAlchemy**, **SQLite** (local) / **PostgreSQL on Neon** (production), and **Tailwind CSS** that enables colleges and universities to manage campus events and shared physical resources (auditoriums, seminar halls, computer/electronics laboratories, projectors, microphones, cameras, and computing equipment fleets).
 
 The system emphasizes robust backend validation, mathematical interval conflict detection, atomic all-or-nothing database transactions, and an intelligent best-fit alternative resource recommendation engine.
 
@@ -51,7 +51,7 @@ The system emphasizes robust backend validation, mathematical interval conflict 
   1. **Pending Review**: Sign-off decision (`Approve` or `Reject`).
   2. **Approved (Awaiting Allocation)**: Atomic allocation step (`Allocate` or `Cancel`).
   3. **Active Allocations**: Live locked resources with instant release option.
-- **Transactional Atomicity Guarantee**: If an event requests multiple resources (e.g. Auditorium + Projector + 2 Microphones) and even one resource is unavailable, zero resources are locked in. The entire transaction rolls back cleanly in SQLite.
+- **Transactional Atomicity Guarantee**: If an event requests multiple resources (e.g. Auditorium + Projector + 2 Microphones) and even one resource is unavailable, zero resources are locked in. The entire transaction rolls back cleanly (SQLite locally, PostgreSQL in production).
 
 ### 8. Role-Based Access & Demo Accounts
 - Built-in roles for **Admin** and **Organizer** with 1-click Quick Demo Sign-In buttons:
@@ -65,7 +65,7 @@ The system emphasizes robust backend validation, mathematical interval conflict 
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
 | **Backend Framework** | Python 3.10+, Flask 3.0.3 | Route handling, request lifecycle, application factory pattern |
-| **ORM & Database** | SQLAlchemy 2.0+, Flask-SQLAlchemy 3.1.1, SQLite | Relational schema, transactions, migrations, integrity constraints |
+| **ORM & Database** | SQLAlchemy 2.0+, Flask-SQLAlchemy 3.1.1, SQLite (local default), PostgreSQL via Neon (production, set through `DATABASE_URL`) | Relational schema, transactions, migrations, integrity constraints |
 | **Templating** | Jinja2 | Dynamic HTML rendering with reusable base layout |
 | **Styling & UI** | Tailwind CSS (CDN), Custom Royal Indigo Theme | Responsive, modern campus UI (cards, badges, modals, timelines) |
 | **Typography** | Google Fonts (*Plus Jakarta Sans*, *Inter*) | Clean, readable hierarchy |
