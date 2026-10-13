@@ -137,6 +137,15 @@ class Event(db.Model):
         return self.status not in (EventStatus.CANCELLED.value, EventStatus.COMPLETED.value)
 
     @property
+    def is_deletable(self):
+        """Draft, Rejected, and Cancelled events can be safely deleted."""
+        return self.status in (
+            EventStatus.DRAFT.value,
+            EventStatus.REJECTED.value,
+            EventStatus.CANCELLED.value,
+        )
+
+    @property
     def formatted_start(self):
         return self.start_datetime.strftime("%d %b %Y, %I:%M %p")
 

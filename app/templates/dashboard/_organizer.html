@@ -22,15 +22,42 @@
 
     <!-- Action items -->
     {% if rejected_events %}
-    <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 sm:p-5 space-y-3">
-        <h2 class="font-bold text-rose-900 text-sm sm:text-base">Rejected — needs your changes</h2>
+    <div id="rejected-notifications-container" class="bg-rose-50 border border-rose-200 rounded-xl p-4 sm:p-5 space-y-3 transition-all duration-300">
+        <div class="flex items-center justify-between">
+            <h2 class="font-bold text-rose-900 text-sm sm:text-base flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+                Rejected — needs your changes
+            </h2>
+            <button type="button" onclick="dismissAllRejections()" 
+                    class="text-xs text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1 transition"
+                    title="Dismiss all rejection alerts">
+                <span>Dismiss all</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
         {% for ev in rejected_events %}
-        <div class="bg-white border border-rose-200 rounded-lg p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="min-w-0">
-                <a href="{{ url_for('events.view_event', event_id=ev.id) }}" class="font-bold text-slate-900 hover:text-teal-700 text-sm">{{ ev.name }}</a>
-                <p class="text-xs text-rose-800 mt-0.5"><strong>Reason:</strong> {{ ev.rejection_reason or 'No reason was recorded.' }}</p>
+        <div id="rejected-card-{{ ev.id }}" data-event-id="{{ ev.id }}" 
+             class="rejected-card bg-white border border-rose-200 rounded-lg p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs transition-all duration-300">
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                    <a href="{{ url_for('events.view_event', event_id=ev.id) }}" class="font-bold text-slate-900 hover:text-teal-700 text-sm">{{ ev.name }}</a>
+                    <span class="text-[10px] uppercase font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded">Rejected</span>
+                </div>
+                <p class="text-xs text-rose-800 mt-1"><strong>Reason:</strong> {{ ev.rejection_reason or 'No reason was recorded.' }}</p>
             </div>
-            <a href="{{ url_for('requests.create_request', event_id=ev.id) }}" class="px-3.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shrink-0">Fix &amp; Re-request</a>
+            <div class="flex items-center gap-2 shrink-0">
+                <a href="{{ url_for('requests.create_request', event_id=ev.id) }}" class="px-3.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition">Fix &amp; Re-request</a>
+                <form method="post" action="{{ url_for('events.delete_event', event_id=ev.id) }}" onsubmit="return confirm('Permanently delete this rejected event?');" class="inline">
+                    <button type="submit" class="px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition" title="Delete event">
+                        Delete
+                    </button>
+                </form>
+                <button type="button" onclick="dismissRejection('{{ ev.id }}')" 
+                        class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-100/60 rounded-lg transition" 
+                        title="Dismiss notification">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
         </div>
         {% endfor %}
     </div>
@@ -38,14 +65,24 @@
 
     {% if draft_events %}
     <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 sm:p-5 space-y-3">
-        <h2 class="font-bold text-sky-900 text-sm sm:text-base">Drafts — no resources requested yet</h2>
+        <h2 class="font-bold text-sky-900 text-sm sm:text-base">Drafts — ready to submit or refine</h2>
         {% for ev in draft_events %}
         <div class="bg-white border border-sky-200 rounded-lg p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <a href="{{ url_for('events.view_event', event_id=ev.id) }}" class="font-bold text-slate-900 hover:text-teal-700 text-sm">{{ ev.name }}</a>
-                <p class="text-xs text-slate-500 mt-0.5">{{ ev.formatted_window }}</p>
+                <div class="flex items-center gap-2">
+                    <a href="{{ url_for('events.view_event', event_id=ev.id) }}" class="font-bold text-slate-900 hover:text-teal-700 text-sm">{{ ev.name }}</a>
+                    <span class="text-[10px] uppercase font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">Draft</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">{{ ev.formatted_window }}</p>
             </div>
-            <a href="{{ url_for('requests.create_request', event_id=ev.id) }}" class="px-3.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shrink-0">Request Resources</a>
+            <div class="flex items-center gap-2 shrink-0">
+                <a href="{{ url_for('requests.create_request', event_id=ev.id) }}" class="px-3.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition">Submit for Approval</a>
+                <form method="post" action="{{ url_for('events.delete_event', event_id=ev.id) }}" onsubmit="return confirm('Permanently delete this draft event?');" class="inline">
+                    <button type="submit" class="px-3 py-1.5 rounded-lg border border-slate-300 hover:border-rose-300 hover:bg-rose-50 text-slate-600 hover:text-rose-700 text-xs font-semibold transition" title="Delete draft">
+                        Delete
+                    </button>
+                </form>
+            </div>
         </div>
         {% endfor %}
     </div>
@@ -153,3 +190,78 @@
         </div>
     </div>
 </div>
+
+<script>
+(function() {
+    const STORAGE_KEY = 'ces_dismissed_rejections';
+
+    function getDismissedIds() {
+        try {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveDismissedIds(ids) {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+        } catch (e) {}
+    }
+
+    function checkVisibility() {
+        const container = document.getElementById('rejected-notifications-container');
+        if (!container) return;
+        const cards = container.querySelectorAll('.rejected-card');
+        const visibleCards = Array.from(cards).filter(c => c.style.display !== 'none');
+        if (visibleCards.length === 0) {
+            container.style.display = 'none';
+        }
+    }
+
+    // Apply saved dismissals on page load
+    const dismissed = getDismissedIds();
+    dismissed.forEach(id => {
+        const card = document.getElementById('rejected-card-' + id);
+        if (card) {
+            card.style.display = 'none';
+        }
+    });
+    checkVisibility();
+
+    window.dismissRejection = function(eventId) {
+        const card = document.getElementById('rejected-card-' + eventId);
+        if (card) {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(-6px)';
+            setTimeout(() => {
+                card.style.display = 'none';
+                const ids = getDismissedIds();
+                if (!ids.includes(String(eventId))) {
+                    ids.push(String(eventId));
+                    saveDismissedIds(ids);
+                }
+                checkVisibility();
+            }, 200);
+        }
+    };
+
+    window.dismissAllRejections = function() {
+        const container = document.getElementById('rejected-notifications-container');
+        if (!container) return;
+        const cards = container.querySelectorAll('.rejected-card');
+        const ids = getDismissedIds();
+        cards.forEach(card => {
+            const evId = card.getAttribute('data-event-id');
+            if (evId && !ids.includes(String(evId))) {
+                ids.push(String(evId));
+            }
+        });
+        saveDismissedIds(ids);
+        container.style.opacity = '0';
+        setTimeout(() => {
+            container.style.display = 'none';
+        }, 200);
+    };
+})();
+</script>

@@ -397,6 +397,125 @@ class TestCollegeEventSystem(unittest.TestCase):
         self.assertEqual(event.status, EventStatus.REJECTED.value)
         self.assertEqual(event.rejection_reason, "Auditorium is reserved for institutional maintenance.")
 
+    def test_organizer_create_draft_vs_direct_submit(self):
+        now = datetime.now() + timedelta(days=2)
+        start_str = now.strftime("%Y-%m-%dT%H:%M")
+        end_str = (now + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.organizer_user.id
+
+        # 1. Save as Draft
+        res = self.client.post("/events/new", data={
+            "name": "Draft Tech Symposium",
+            "organizer": "Test Organizer",
+            "expected_attendance": "150",
+            "start_datetime": start_str,
+            "end_datetime": end_str,
+            "action": "draft",
+        }, follow_redirects=True)
+        self.assertEqual(res.status_code, 200)
+
+        draft_event = Event.query.filter_by(name="Draft Tech Symposium").first()
+        self.assertIsNotNone(draft_event)
+        self.assertEqual(draft_event.status, EventStatus.DRAFT.value)
+        self.assertEqual(len(draft_event.requests), 0)
+
+        # 2. Direct Submit with resources
+        res2 = self.client.post("/events/new", data={
+            "name": "Submitted Hackathon",
+            "organizer": "Test Organizer",
+            "expected_attendance": "100",
+            "start_datetime": start_str,
+            "end_datetime": end_str,
+            "action": "submit",
+            "required_type[]": [ResourceType.AUDITORIUM.value],
+            "resource_id[]": [str(self.auditorium_small.id)],
+            "quantity[]": ["1"],
+        }, follow_redirects=True)
+        self.assertEqual(res2.status_code, 200)
+
+        submitted_event = Event.query.filter_by(name="Submitted Hackathon").first()
+        self.assertIsNotNone(submitted_event)
+        self.assertEqual(submitted_event.status, EventStatus.PENDING.value)
+        self.assertEqual(len(submitted_event.requests), 1)
+        self.assertEqual(submitted_event.requests[0].status, RequestStatus.PENDING.value)
+
+    def test_delete_draft_and_rejected_events(self):
+        now = datetime.now() + timedelta(days=3)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.organizer_user.id
+
+        # Create draft event
+        draft_event = Event(
+            name="Temporary Draft",
+            organizer="Test Organizer",
+            expected_attendance=50,
+            start_datetime=now,
+            end_datetime=now + timedelta(hours=2),
+            status=EventStatus.DRAFT.value,
+            owner_id=self.organizer_user.id,
+        )
+        db.session.add(draft_event)
+        db.session.commit()
+
+        # Organizer deletes their draft event
+        res = self.client.post(f"/events/{draft_event.id}/delete", follow_redirects=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNone(Event.query.get(draft_event.id))
+
+        # Create rejected event with request
+        rejected_event = Event(
+            name="Rejected Conference",
+            organizer="Test Organizer",
+            expected_attendance=200,
+            start_datetime=now,
+            end_datetime=now + timedelta(hours=3),
+            status=EventStatus.REJECTED.value,
+            owner_id=self.organizer_user.id,
+        )
+        db.session.add(rejected_event)
+        db.session.flush()
+
+        req = ResourceRequest(
+            event_id=rejected_event.id,
+            start_datetime=now,
+            end_datetime=now + timedelta(hours=3),
+            status=RequestStatus.REJECTED.value,
+            rejection_reason="Schedule conflict",
+        )
+        db.session.add(req)
+        db.session.commit()
+
+        # Organizer deletes the rejected event
+        res2 = self.client.post(f"/events/{rejected_event.id}/delete", follow_redirects=True)
+        self.assertEqual(res2.status_code, 200)
+        self.assertIsNone(Event.query.get(rejected_event.id))
+        self.assertIsNone(ResourceRequest.query.get(req.id))
+
+    def test_cannot_delete_approved_event(self):
+        now = datetime.now() + timedelta(days=4)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.organizer_user.id
+
+        approved_event = Event(
+            name="Official Approved Gala",
+            organizer="Test Organizer",
+            expected_attendance=300,
+            start_datetime=now,
+            end_datetime=now + timedelta(hours=4),
+            status=EventStatus.APPROVED.value,
+            owner_id=self.organizer_user.id,
+        )
+        db.session.add(approved_event)
+        db.session.commit()
+
+        # Try to delete approved event directly -> should be blocked
+        res = self.client.post(f"/events/{approved_event.id}/delete", follow_redirects=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNotNone(Event.query.get(approved_event.id))
+        self.assertEqual(Event.query.get(approved_event.id).status, EventStatus.APPROVED.value)
+
 
 if __name__ == "__main__":
     unittest.main()

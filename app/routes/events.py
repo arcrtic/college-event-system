@@ -111,6 +111,8 @@ def create_event():
             flash(e.message, "error")
             return render_template("events/form.html", event=None, form_data=request.form, resource_types=resource_types)
 
+        submit_action = request.form.get("action", "submit")
+
         # Resources are optional at creation time -- an organizer can also
         # add them later via "Request Resources" on the event page. Rows
         # where nothing was picked (blank resource_id) are dropped.
@@ -126,7 +128,7 @@ def create_event():
                 rows, data["expected_attendance"], data["start_datetime"], data["end_datetime"]
             )
 
-        if item_problems:
+        if item_problems and submit_action != "draft":
             # All-or-nothing extends to event creation too: if any picked
             # resource is no longer available (it may have just been
             # booked by someone else), the event itself isn't created
@@ -143,7 +145,8 @@ def create_event():
             db.session.add(event)
             db.session.flush()  # get event.id before creating its request
 
-            if validated_items:
+            # Only attach and submit resource requests if not explicitly saved as a draft
+            if submit_action == "submit" and validated_items:
                 res_request = ResourceRequest(
                     event_id=event.id,
                     start_datetime=data["start_datetime"],
@@ -163,11 +166,15 @@ def create_event():
             flash("Something went wrong creating the event. Please try again.", "error")
             return render_template("events/form.html", event=None, form_data=request.form, resource_types=resource_types)
 
-        if validated_items:
-            flash(f"Event '{event.name}' created with {len(validated_items)} resource(s) requested, pending approval.", "success")
+        if submit_action == "draft":
+            flash(f"Event '{event.name}' saved as Draft. You can request resources and submit for approval whenever you're ready.", "success")
+            return redirect(url_for("events.view_event", event_id=event.id))
+        elif validated_items:
+            flash(f"Event '{event.name}' created and request submitted to administrator for approval.", "success")
+            return redirect(url_for("events.view_event", event_id=event.id))
         else:
-            flash(f"Event '{event.name}' created.", "success")
-        return redirect(url_for("events.view_event", event_id=event.id))
+            flash(f"Event '{event.name}' created! Please select required campus resources to submit your request to the administrator.", "info")
+            return redirect(url_for("requests.create_request", event_id=event.id))
 
     return render_template("events/form.html", event=None, form_data=None, resource_types=resource_types)
 
@@ -266,3 +273,38 @@ def cancel_event(event_id):
     else:
         flash(f"Event '{event.name}' cancelled.", "success")
     return redirect(url_for("events.view_event", event_id=event.id))
+
+
+@events_bp.route("/<int:event_id>/delete", methods=["POST"])
+def delete_event(event_id):
+    """
+    Permanently delete an event if it is Draft, Rejected, or Cancelled.
+    This safely purges rejected or discarded drafts so organizers have
+    a clean workspace. Active (Approved, Allocated, Completed) events
+    cannot be deleted directly to protect resource booking integrity.
+    """
+    event = Event.query.get_or_404(event_id)
+    ensure_can_manage_event(event)
+
+    if not event.is_deletable:
+        flash(
+            f"Cannot delete an event with status '{event.status}'. "
+            f"Only Draft, Rejected, or Cancelled events can be deleted.",
+            "error",
+        )
+        return redirect(url_for("events.view_event", event_id=event.id))
+
+    event_name = event.name
+    status = event.status
+
+    # Purge any allocations linked to this event (e.g. from previously cancelled requests)
+    Allocation.query.filter_by(event_id=event.id).delete()
+
+    db.session.delete(event)
+    log_action("event.delete", "Event", event_id, f"Permanently deleted '{event_name}' ({status})")
+    db.session.commit()
+
+    flash(f"Event '{event_name}' was permanently deleted.", "success")
+    if is_admin():
+        return redirect(url_for("events.list_events"))
+    return redirect(url_for("dashboard.index"))

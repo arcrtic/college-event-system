@@ -16,7 +16,11 @@
     <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
         <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">{{ 'Edit Event' if event else 'Create New Event' }}</h1>
         <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            {% if not event and not is_admin %}
+            Save as a private draft to refine later, or submit directly to administrators for resource approval.
+            {% else %}
             Specify the schedule, organizer, and attendance. Resources can be attached now or requested later.
+            {% endif %}
         </p>
     </div>
 
@@ -125,14 +129,35 @@
         {% endif %}
 
         <!-- Submit Toolbar -->
-        <div class="pt-6 border-t border-slate-200 flex items-center justify-end gap-3">
+        <div class="pt-6 border-t border-slate-200 flex flex-wrap items-center justify-end gap-3">
             <a href="{{ url_for('events.list_events') }}" class="px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition">
                 Cancel
             </a>
+            {% if event %}
             <button type="submit" 
                     class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-sm transition">
-                {{ 'Save Changes' if event else 'Create Event' }}
+                Save Changes
             </button>
+            {% elif is_admin %}
+            <button type="submit" name="action" value="submit"
+                    class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition">
+                Create Event
+            </button>
+            {% else %}
+            <!-- Organizer Dual Actions: Save as Draft OR Submit directly to Admin -->
+            <button type="submit" name="action" value="draft"
+                    class="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-bold rounded-lg shadow-xs transition flex items-center gap-1.5"
+                    title="Save this event as a private draft without sending to admin">
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                Save as Draft
+            </button>
+            <button type="submit" name="action" value="submit"
+                    class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5"
+                    title="Directly submit event and resource request to administrators">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                Submit to Admin
+            </button>
+            {% endif %}
         </div>
     </form>
 
