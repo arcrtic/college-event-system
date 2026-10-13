@@ -48,7 +48,7 @@
             </form>
             {% endif %}
 
-            {% if is_admin and event.status in ['Approved', 'Pending'] %}
+            {% if is_admin and event.status in ['Approved', 'Pending', 'Rejected'] %}
             <form method="post" action="{{ url_for('events.complete_event', event_id=event.id) }}"
                   onsubmit="return confirm('Mark this event as Completed?');" class="inline">
                 <button type="submit" 

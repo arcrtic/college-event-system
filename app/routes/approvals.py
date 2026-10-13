@@ -64,8 +64,22 @@ def reject_request(request_id):
         return redirect(request.referrer or url_for("approvals.list_approvals"))
 
     req.status = RequestStatus.REJECTED.value
+
+    # If ALL of this event's requests are now terminal (Rejected or Cancelled),
+    # transition the event itself to Rejected so its status reflects reality.
+    # This satisfies the assignment's required Rejected event status.
+    # An organizer can still submit a new request from a Rejected event,
+    # which will move it back to Pending.
+    event = req.event
+    terminal_statuses = {RequestStatus.REJECTED.value, RequestStatus.CANCELLED.value}
+    all_terminal = all(r.status in terminal_statuses for r in event.requests)
+    if all_terminal and event.status == EventStatus.PENDING.value:
+        event.status = EventStatus.REJECTED.value
+
     db.session.commit()
     flash(f"Request #{req.id} has been rejected.", "success")
+    if all_terminal:
+        flash(f"Event '{event.name}' has been marked as Rejected since all its requests are now rejected/cancelled.", "warning")
     return redirect(request.referrer or url_for("approvals.list_approvals"))
 
 

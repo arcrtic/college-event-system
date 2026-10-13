@@ -36,9 +36,15 @@ def view_request(request_id):
 @requests_bp.route("/new", methods=["GET", "POST"])
 @requests_bp.route("/new/<int:event_id>", methods=["GET", "POST"])
 def create_request(event_id=None):
-    # Available events for requesting resources (Draft, Pending, or Approved)
+    # Available events for requesting resources (Draft, Pending, Approved, or Rejected).
+    # Rejected events are included so organizers can resubmit after a rejection.
     available_events = Event.query.filter(
-        Event.status.in_([EventStatus.DRAFT.value, EventStatus.PENDING.value, EventStatus.APPROVED.value])
+        Event.status.in_([
+            EventStatus.DRAFT.value,
+            EventStatus.PENDING.value,
+            EventStatus.APPROVED.value,
+            EventStatus.REJECTED.value,
+        ])
     ).order_by(Event.start_datetime.asc()).all()
 
     selected_event = None
@@ -128,8 +134,10 @@ def create_request(event_id=None):
                     RequestItem(request_id=res_request.id, resource_id=resource.id, quantity=qty)
                 )
 
-            # Move Draft events to Pending upon request submission
-            if selected_event.status == EventStatus.DRAFT.value:
+            # Move Draft or Rejected events to Pending upon request submission.
+            # Rejected events re-enter the approval queue when the organizer
+            # submits a new request after addressing the admin's concerns.
+            if selected_event.status in (EventStatus.DRAFT.value, EventStatus.REJECTED.value):
                 selected_event.status = EventStatus.PENDING.value
 
             db.session.commit()

@@ -62,6 +62,8 @@ class Event(db.Model):
 
     @property
     def is_editable(self):
+        # Rejected events can still be edited so the organizer can fix
+        # dates/attendance and submit a new resource request.
         return self.status not in (EventStatus.CANCELLED.value, EventStatus.COMPLETED.value)
 
     @property
