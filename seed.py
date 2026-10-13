@@ -1,245 +1,426 @@
+
 """
 Database seed script for the College Event Resource Allocation System.
 
-Populates realistic campus venues, equipment fleets, events across different
-lifecycle statuses, resource requests, and active allocations to immediately
-demonstrate:
-1. Double-booking conflict prevention (overlapping time slots rejected, back-to-back allowed)
-2. Resource suitability enforcement (capacity checks, category type validation)
-3. Alternative resource suggestion algorithms (best-fit capacity matching)
-4. Approval and all-or-nothing allocation workflows
+Initializes the database and populates campus resources, sample events,
+resource requests, and allocations.
 
 Usage:
     python seed.py
+    python seed.py --reset
+
+WARNING:
+    --reset deletes existing database tables and their data.
+    Do not use --reset on a database containing data you need to keep.
 """
-from datetime import datetime, timedelta
-
-from app import create_app
-from app.extensions import db
-from app.models import Resource, ResourceType, Event, EventStatus, ResourceRequest, RequestItem, RequestStatus, Allocation
-
 
 import os
 import sys
 import time
+from datetime import datetime, timedelta
+
+from sqlalchemy import text
+
+from app import create_app
+from app.extensions import db
+from app.models import (
+    Resource,
+    ResourceType,
+    Event,
+    EventStatus,
+    ResourceRequest,
+    RequestItem,
+    RequestStatus,
+    Allocation,
+)
 
 
 def seed_data(app):
-    """
-    Runs the actual seeding against an already-constructed Flask app.
-    Split out from run() so app/__init__.py can call this directly in a
-    background thread on startup (needed on plans without Shell access,
-    where `python seed.py` can't be run manually after deploy).
-    """
+    """Initialize missing tables and seed the database safely."""
+
     with app.app_context():
-        # Log what we're actually connecting to, since "waiting for db"
-        # loops are impossible to debug blind. This intentionally does NOT
-        # print any password that might be embedded in the URI.
         db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "<unset>")
+
+        # Never print database credentials.
         safe_uri = db_uri
         if "@" in db_uri and "://" in db_uri:
             scheme, rest = db_uri.split("://", 1)
-            creds_and_host = rest.split("@", 1)
-            if len(creds_and_host) == 2:
-                safe_uri = f"{scheme}://***@{creds_and_host[1]}"
+            _, host_part = rest.split("@", 1)
+            safe_uri = f"{scheme}://***@{host_part}"
+
         print(f"[INFO] Connecting to database: {safe_uri}")
 
-        # Retry connecting in case PostgreSQL database is still spinning up
+        # Retry the database connection.
         connected = False
         last_error = None
-        for attempt in range(1, 10):
+
+        for attempt in range(1, 11):
             try:
-                db.session.execute(db.text("SELECT 1"))
+                db.session.execute(text("SELECT 1"))
+                db.session.rollback()
                 connected = True
+                print("[OK] Database connection successful.")
                 break
-            except Exception as e:
-                last_error = e
-                print(f"[WAIT] Attempt {attempt}/10 failed: {e}")
-                time.sleep(2)
+
+            except Exception as exc:
+                last_error = exc
+
+                # A failed SQL statement can leave the transaction aborted.
+                db.session.rollback()
+
+                print(
+                    f"[WAIT] Connection attempt "
+                    f"{attempt}/10 failed: {exc}"
+                )
+
+                if attempt < 10:
+                    time.sleep(2)
 
         if not connected:
-            print("[ERROR] Could not connect to database after retries.")
-            if last_error is not None:
-                print(f"[ERROR] Last error was: {last_error}")
-            print("[HINT] If this is SQLite, check that the 'instance' folder exists "
-                  "and is writable, and that SQLALCHEMY_DATABASE_URI above points where "
-                  "you expect. If this is Postgres, check that the server is running and "
-                  "reachable at that host/port, and that credentials are correct.")
-            return
+            print("[ERROR] Could not connect to the database.")
+            print(f"[ERROR] Last error: {last_error}")
+            return False
 
         force_reset = "--reset" in sys.argv
-        try:
-            if not force_reset and Resource.query.first() is not None:
-                print("[INFO] Database already contains data. Skipping seed. (Use --reset to overwrite)")
-                return
-        except Exception as e:
-            print(f"[WARN] Could not check for existing data (continuing to seed): {e}")
 
-        # Clear existing tables for a clean seed reset
         try:
-            db.drop_all()
+            # Only an explicit --reset is allowed to delete tables.
+            if force_reset:
+                print("[WARN] Reset requested. Dropping existing tables.")
+                db.drop_all()
+                db.session.commit()
+
+            # Create any missing tables without deleting existing data.
             db.create_all()
-        except Exception as e:
-            print(f"[ERROR] Database creation error: {e}")
-            return
+            db.session.commit()
 
-        print("Seeding campus resources...")
-        resources = [
-            # 1. Auditoriums & Seminar Halls (Audience capacity constrained)
-            Resource(name="Main Auditorium", type=ResourceType.AUDITORIUM.value, capacity=500, total_quantity=1, is_active=True),
-            Resource(name="Mini Auditorium", type=ResourceType.AUDITORIUM.value, capacity=200, total_quantity=1, is_active=True),
-            Resource(name="Seminar Hall A", type=ResourceType.AUDITORIUM.value, capacity=100, total_quantity=1, is_active=True),
-            Resource(name="Seminar Hall B (Maintenance)", type=ResourceType.AUDITORIUM.value, capacity=80, total_quantity=1, is_active=False),
+            print("[OK] Database tables are ready.")
 
-            # 2. Laboratories (Capacity constrained)
-            Resource(name="Computer Lab 1", type=ResourceType.LABORATORY.value, capacity=60, total_quantity=1, is_active=True),
-            Resource(name="Computer Lab 2", type=ResourceType.LABORATORY.value, capacity=40, total_quantity=1, is_active=True),
-            Resource(name="Electronics & Robotics Lab", type=ResourceType.LABORATORY.value, capacity=35, total_quantity=1, is_active=True),
+        except Exception as exc:
+            db.session.rollback()
+            print(f"[ERROR] Database table initialization failed: {exc}")
+            return False
 
-            # 3. Audiovisual Equipment (Multi-unit fleets)
-            Resource(name="4K Laser Projector", type=ResourceType.PROJECTOR.value, capacity=None, total_quantity=3, is_active=True),
-            Resource(name="Portable HD Projector", type=ResourceType.PROJECTOR.value, capacity=None, total_quantity=4, is_active=True),
-            Resource(name="Wireless Handheld Mic Set", type=ResourceType.MICROPHONE.value, capacity=None, total_quantity=6, is_active=True),
-            Resource(name="Collar / Lavalier Mic Set", type=ResourceType.MICROPHONE.value, capacity=None, total_quantity=4, is_active=True),
-            Resource(name="Professional DSLR Camera", type=ResourceType.CAMERA.value, capacity=None, total_quantity=2, is_active=True),
-            Resource(name="4K Video Production Camera", type=ResourceType.CAMERA.value, capacity=None, total_quantity=2, is_active=True),
+        # Check whether initial resources already exist.
+        try:
+            existing_resource = Resource.query.first()
 
-            # 4. Computing fleets
-            Resource(name="Laptop Cart Fleet", type=ResourceType.COMPUTER.value, capacity=None, total_quantity=25, is_active=True),
-            Resource(name="Desktop Workstation Lab", type=ResourceType.COMPUTER.value, capacity=None, total_quantity=30, is_active=True),
-        ]
-        db.session.add_all(resources)
-        db.session.flush()
+            if existing_resource is not None:
+                print(
+                    "[INFO] Database already contains resources. "
+                    "Skipping seed."
+                )
+                return True
 
-        # Map resources by name for easy relational linking
-        res_by_name = {r.name: r for r in resources}
+        except Exception as exc:
+            db.session.rollback()
+            print(f"[ERROR] Could not check existing resources: {exc}")
+            return False
 
-        now = datetime.now().replace(minute=0, second=0, microsecond=0)
+        try:
+            print("Seeding campus resources...")
 
-        print("Seeding sample events across lifecycle stages...")
+            resources = [
+                Resource(
+                    name="Main Auditorium",
+                    type=ResourceType.AUDITORIUM.value,
+                    capacity=500,
+                    total_quantity=1,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Mini Auditorium",
+                    type=ResourceType.AUDITORIUM.value,
+                    capacity=200,
+                    total_quantity=1,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Seminar Hall A",
+                    type=ResourceType.AUDITORIUM.value,
+                    capacity=100,
+                    total_quantity=1,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Seminar Hall B (Maintenance)",
+                    type=ResourceType.AUDITORIUM.value,
+                    capacity=80,
+                    total_quantity=1,
+                    is_active=False,
+                ),
+                Resource(
+                    name="Computer Lab 1",
+                    type=ResourceType.LABORATORY.value,
+                    capacity=60,
+                    total_quantity=1,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Computer Lab 2",
+                    type=ResourceType.LABORATORY.value,
+                    capacity=40,
+                    total_quantity=1,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Electronics & Robotics Lab",
+                    type=ResourceType.LABORATORY.value,
+                    capacity=35,
+                    total_quantity=1,
+                    is_active=True,
+                ),
+                Resource(
+                    name="4K Laser Projector",
+                    type=ResourceType.PROJECTOR.value,
+                    capacity=None,
+                    total_quantity=3,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Portable HD Projector",
+                    type=ResourceType.PROJECTOR.value,
+                    capacity=None,
+                    total_quantity=4,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Wireless Handheld Mic Set",
+                    type=ResourceType.MICROPHONE.value,
+                    capacity=None,
+                    total_quantity=6,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Collar / Lavalier Mic Set",
+                    type=ResourceType.MICROPHONE.value,
+                    capacity=None,
+                    total_quantity=4,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Professional DSLR Camera",
+                    type=ResourceType.CAMERA.value,
+                    capacity=None,
+                    total_quantity=2,
+                    is_active=True,
+                ),
+                Resource(
+                    name="4K Video Production Camera",
+                    type=ResourceType.CAMERA.value,
+                    capacity=None,
+                    total_quantity=2,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Laptop Cart Fleet",
+                    type=ResourceType.COMPUTER.value,
+                    capacity=None,
+                    total_quantity=25,
+                    is_active=True,
+                ),
+                Resource(
+                    name="Desktop Workstation Lab",
+                    type=ResourceType.COMPUTER.value,
+                    capacity=None,
+                    total_quantity=30,
+                    is_active=True,
+                ),
+            ]
 
-        # 1. Approved Event with Allocated Resources (Locked in)
-        # Event: Technical Workshop (20 Sep 2026, 10:00 AM - 02:00 PM)
-        ev1_start = (now + timedelta(days=7)).replace(hour=10)
-        ev1_end = ev1_start + timedelta(hours=4)
-        event1 = Event(
-            name="Technical Workshop 2026",
-            organizer="CS Department",
-            expected_attendance=180,
-            start_datetime=ev1_start,
-            end_datetime=ev1_end,
-            status=EventStatus.APPROVED.value,
-        )
-        db.session.add(event1)
-        db.session.flush()
+            db.session.add_all(resources)
+            db.session.flush()
 
-        req1 = ResourceRequest(
-            event_id=event1.id,
-            start_datetime=ev1_start,
-            end_datetime=ev1_end,
-            status=RequestStatus.ALLOCATED.value,
-            decided_at=now,
-        )
-        db.session.add(req1)
-        db.session.flush()
+            res_by_name = {resource.name: resource for resource in resources}
+            now = datetime.now().replace(
+                minute=0, second=0, microsecond=0
+            )
 
-        # Requested items: Mini Auditorium (cap 200 fits 180), 1 4K Laser Projector, 2 Wireless Mics
-        item1_hall = RequestItem(request_id=req1.id, resource_id=res_by_name["Mini Auditorium"].id, quantity=1)
-        item1_proj = RequestItem(request_id=req1.id, resource_id=res_by_name["4K Laser Projector"].id, quantity=1)
-        item1_mics = RequestItem(request_id=req1.id, resource_id=res_by_name["Wireless Handheld Mic Set"].id, quantity=2)
-        db.session.add_all([item1_hall, item1_proj, item1_mics])
-        db.session.flush()
+            print("Seeding sample events...")
 
-        # Create corresponding active allocations
-        db.session.add(Allocation(
-            request_item_id=item1_hall.id, resource_id=res_by_name["Mini Auditorium"].id,
-            event_id=event1.id, quantity=1, start_datetime=ev1_start, end_datetime=ev1_end, is_active=True
-        ))
-        db.session.add(Allocation(
-            request_item_id=item1_proj.id, resource_id=res_by_name["4K Laser Projector"].id,
-            event_id=event1.id, quantity=1, start_datetime=ev1_start, end_datetime=ev1_end, is_active=True
-        ))
-        db.session.add(Allocation(
-            request_item_id=item1_mics.id, resource_id=res_by_name["Wireless Handheld Mic Set"].id,
-            event_id=event1.id, quantity=2, start_datetime=ev1_start, end_datetime=ev1_end, is_active=True
-        ))
+            # 1. Approved technical workshop with allocated resources.
+            ev1_start = (now + timedelta(days=7)).replace(hour=10)
+            ev1_end = ev1_start + timedelta(hours=4)
 
-        # 2. Pending Event with Pending Resource Request (Awaiting Admin Review)
-        # Event: Cultural Fest (27 Sep 2026, 10:00 AM - 08:00 PM)
-        ev2_start = (now + timedelta(days=14)).replace(hour=10)
-        ev2_end = ev2_start + timedelta(hours=10)
-        event2 = Event(
-            name="Cultural Fest 2026",
-            organizer="Student Council",
-            expected_attendance=450,
-            start_datetime=ev2_start,
-            end_datetime=ev2_end,
-            status=EventStatus.PENDING.value,
-        )
-        db.session.add(event2)
-        db.session.flush()
+            event1 = Event(
+                name="Technical Workshop 2026",
+                organizer="CS Department",
+                expected_attendance=180,
+                start_datetime=ev1_start,
+                end_datetime=ev1_end,
+                status=EventStatus.APPROVED.value,
+            )
+            db.session.add(event1)
+            db.session.flush()
 
-        req2 = ResourceRequest(
-            event_id=event2.id,
-            start_datetime=ev2_start,
-            end_datetime=ev2_end,
-            status=RequestStatus.PENDING.value,
-        )
-        db.session.add(req2)
-        db.session.flush()
+            req1 = ResourceRequest(
+                event_id=event1.id,
+                start_datetime=ev1_start,
+                end_datetime=ev1_end,
+                status=RequestStatus.ALLOCATED.value,
+                decided_at=now,
+            )
+            db.session.add(req1)
+            db.session.flush()
 
-        db.session.add(RequestItem(request_id=req2.id, resource_id=res_by_name["Main Auditorium"].id, quantity=1))
-        db.session.add(RequestItem(request_id=req2.id, resource_id=res_by_name["Professional DSLR Camera"].id, quantity=1))
-        db.session.add(RequestItem(request_id=req2.id, resource_id=res_by_name["Wireless Handheld Mic Set"].id, quantity=4))
+            item1_hall = RequestItem(
+                request_id=req1.id,
+                resource_id=res_by_name["Mini Auditorium"].id,
+                quantity=1,
+            )
+            item1_proj = RequestItem(
+                request_id=req1.id,
+                resource_id=res_by_name["4K Laser Projector"].id,
+                quantity=1,
+            )
+            item1_mics = RequestItem(
+                request_id=req1.id,
+                resource_id=res_by_name[
+                    "Wireless Handheld Mic Set"
+                ].id,
+                quantity=2,
+            )
 
-        # 3. Draft Event (No resources requested yet)
-        # Event: Alumni Meet 2026
-        ev3_start = (now + timedelta(days=21)).replace(hour=11)
-        ev3_end = ev3_start + timedelta(hours=5)
-        event3 = Event(
-            name="Alumni Meet 2026",
-            organizer="Admin Office",
-            expected_attendance=300,
-            start_datetime=ev3_start,
-            end_datetime=ev3_end,
-            status=EventStatus.DRAFT.value,
-        )
-        db.session.add(event3)
+            db.session.add_all([item1_hall, item1_proj, item1_mics])
+            db.session.flush()
 
-        # 4. Completed Event
-        # Event: Hackathon 2026 (Past event)
-        ev4_start = (now - timedelta(days=5)).replace(hour=8)
-        ev4_end = ev4_start + timedelta(hours=12)
-        event4 = Event(
-            name="Campus Hackathon 2026",
-            organizer="IT Department",
-            expected_attendance=120,
-            start_datetime=ev4_start,
-            end_datetime=ev4_end,
-            status=EventStatus.COMPLETED.value,
-        )
-        db.session.add(event4)
+            db.session.add_all([
+                Allocation(
+                    request_item_id=item1_hall.id,
+                    resource_id=res_by_name["Mini Auditorium"].id,
+                    event_id=event1.id,
+                    quantity=1,
+                    start_datetime=ev1_start,
+                    end_datetime=ev1_end,
+                    is_active=True,
+                ),
+                Allocation(
+                    request_item_id=item1_proj.id,
+                    resource_id=res_by_name["4K Laser Projector"].id,
+                    event_id=event1.id,
+                    quantity=1,
+                    start_datetime=ev1_start,
+                    end_datetime=ev1_end,
+                    is_active=True,
+                ),
+                Allocation(
+                    request_item_id=item1_mics.id,
+                    resource_id=res_by_name[
+                        "Wireless Handheld Mic Set"
+                    ].id,
+                    event_id=event1.id,
+                    quantity=2,
+                    start_datetime=ev1_start,
+                    end_datetime=ev1_end,
+                    is_active=True,
+                ),
+            ])
 
-        db.session.commit()
-        print("[OK] Database successfully initialized and seeded with:")
-        print(f"  - {len(resources)} campus resources")
-        print("  - 4 sample events across Draft, Pending, Approved, and Completed")
-        print("  - Active allocations demonstrating double-booking locks and suitability validation.")
+            # 2. Pending cultural fest.
+            ev2_start = (now + timedelta(days=14)).replace(hour=10)
+            ev2_end = ev2_start + timedelta(hours=10)
+
+            event2 = Event(
+                name="Cultural Fest 2026",
+                organizer="Student Council",
+                expected_attendance=450,
+                start_datetime=ev2_start,
+                end_datetime=ev2_end,
+                status=EventStatus.PENDING.value,
+            )
+            db.session.add(event2)
+            db.session.flush()
+
+            req2 = ResourceRequest(
+                event_id=event2.id,
+                start_datetime=ev2_start,
+                end_datetime=ev2_end,
+                status=RequestStatus.PENDING.value,
+            )
+            db.session.add(req2)
+            db.session.flush()
+
+            db.session.add_all([
+                RequestItem(
+                    request_id=req2.id,
+                    resource_id=res_by_name["Main Auditorium"].id,
+                    quantity=1,
+                ),
+                RequestItem(
+                    request_id=req2.id,
+                    resource_id=res_by_name[
+                        "Professional DSLR Camera"
+                    ].id,
+                    quantity=1,
+                ),
+                RequestItem(
+                    request_id=req2.id,
+                    resource_id=res_by_name[
+                        "Wireless Handheld Mic Set"
+                    ].id,
+                    quantity=4,
+                ),
+            ])
+
+            # 3. Draft alumni meet.
+            ev3_start = (now + timedelta(days=21)).replace(hour=11)
+            ev3_end = ev3_start + timedelta(hours=5)
+
+            event3 = Event(
+                name="Alumni Meet 2026",
+                organizer="Admin Office",
+                expected_attendance=300,
+                start_datetime=ev3_start,
+                end_datetime=ev3_end,
+                status=EventStatus.DRAFT.value,
+            )
+            db.session.add(event3)
+
+            # 4. Completed campus hackathon.
+            ev4_start = (now - timedelta(days=5)).replace(hour=8)
+            ev4_end = ev4_start + timedelta(hours=12)
+
+            event4 = Event(
+                name="Campus Hackathon 2026",
+                organizer="IT Department",
+                expected_attendance=120,
+                start_datetime=ev4_start,
+                end_datetime=ev4_end,
+                status=EventStatus.COMPLETED.value,
+            )
+            db.session.add(event4)
+
+            # Commit all seed data as a single transaction.
+            db.session.commit()
+
+            print("[OK] Database initialized and seeded successfully.")
+            print(f"  - {len(resources)} campus resources")
+            print("  - 4 sample events")
+            print("  - Resource requests and active allocations")
+
+            return True
+
+        except Exception as exc:
+            # Roll back every uncommitted seed operation on failure.
+            db.session.rollback()
+            print(f"[ERROR] Database seeding failed: {exc}")
+            return False
+
+        finally:
+            db.session.remove()
 
 
 def run():
-    """Standalone entry point: builds its own app, then seeds it.
-    Still usable locally via `python seed.py` / `python seed.py --reset`.
+    """Run the database initializer as a standalone script."""
 
-    AUTO_SEED is disabled here before create_app() is called -- otherwise
-    create_app() would *also* spin up its own background seeding thread
-    (the one meant for hosts with no shell access), and that thread would
-    race with this explicit seed_data() call over the same SQLite file,
-    causing spurious "database is locked" retries.
-    """
+    # Prevent a second background seeding process from racing this script.
     os.environ["AUTO_SEED"] = "0"
+
     app = create_app()
-    seed_data(app)
+    success = seed_data(app)
+
+    if not success:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
