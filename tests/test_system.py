@@ -516,6 +516,73 @@ class TestCollegeEventSystem(unittest.TestCase):
         self.assertIsNotNone(Event.query.get(approved_event.id))
         self.assertEqual(Event.query.get(approved_event.id).status, EventStatus.APPROVED.value)
 
+    def test_admin_can_create_event_and_sees_dashboard_button(self):
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.admin_user.id
+
+        # 1. Admin dashboard should have "Create Event" button
+        dash_res = self.client.get("/")
+        self.assertEqual(dash_res.status_code, 200)
+        self.assertIn(b"Create Event", dash_res.data)
+
+        # 2. Admin creates an event
+        now = datetime.now() + timedelta(days=5)
+        res = self.client.post("/events/new", data={
+            "name": "Annual Convocation 2026",
+            "organizer": "Administration",
+            "expected_attendance": "400",
+            "start_datetime": now.strftime("%Y-%m-%dT%H:%M"),
+            "end_datetime": (now + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M"),
+            "action": "submit",
+        }, follow_redirects=True)
+        self.assertEqual(res.status_code, 200)
+
+        ev = Event.query.filter_by(name="Annual Convocation 2026").first()
+        self.assertIsNotNone(ev)
+        self.assertEqual(ev.owner_id, self.admin_user.id)
+
+    def test_organizer_can_view_other_organizer_events_and_dates(self):
+        # Create second organizer
+        other_org = User(username="otherorg", name="Dr. Mehta", role="organizer")
+        other_org.set_password("pass123")
+        db.session.add(other_org)
+        db.session.commit()
+
+        # Other organizer creates a scheduled event
+        future_dt = datetime.now() + timedelta(days=6)
+        other_event = Event(
+            name="Quantum Computing Workshop",
+            organizer="Physics Department",
+            expected_attendance=80,
+            start_datetime=future_dt,
+            end_datetime=future_dt + timedelta(hours=2),
+            status=EventStatus.APPROVED.value,
+            owner_id=other_org.id,
+        )
+        db.session.add(other_event)
+        db.session.commit()
+
+        # First organizer logs in
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.organizer_user.id
+
+        # Organizer visits Campus Calendar (scope=all)
+        res_all = self.client.get("/events/?scope=all")
+        self.assertEqual(res_all.status_code, 200)
+        self.assertIn(b"Quantum Computing Workshop", res_all.data)
+        self.assertIn(b"Physics Department", res_all.data)
+
+        # Organizer filters specifically by other organizer
+        res_filter = self.client.get("/events/?scope=all&organizer=Physics+Department")
+        self.assertEqual(res_filter.status_code, 200)
+        self.assertIn(b"Quantum Computing Workshop", res_filter.data)
+
+        # Organizer dashboard contains the Campus Schedule tab
+        dash = self.client.get("/")
+        self.assertEqual(dash.status_code, 200)
+        self.assertIn(b"Campus Schedule", dash.data)
+        self.assertIn(b"Quantum Computing Workshop", dash.data)
+
 
 if __name__ == "__main__":
     unittest.main()

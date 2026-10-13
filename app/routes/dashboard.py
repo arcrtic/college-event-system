@@ -98,6 +98,17 @@ def _organizer_context(user):
         .all()
     )
 
+    # Campus schedule: upcoming events across all organizers so organizers can track other departments' events & dates
+    all_campus_upcoming = (
+        Event.query.filter(
+            Event.status.in_([EventStatus.APPROVED.value, EventStatus.PENDING.value]),
+            Event.end_datetime >= datetime.now(),
+        )
+        .order_by(Event.start_datetime.asc())
+        .limit(10)
+        .all()
+    )
+
     return dict(
         my_total_events=my_events.count(),
         status_counts=status_counts,
@@ -108,6 +119,7 @@ def _organizer_context(user):
         rejected_events=rejected_events,
         draft_events=draft_events,
         upcoming_events=upcoming,
+        all_campus_upcoming=all_campus_upcoming,
         recent_requests=my_requests.order_by(ResourceRequest.created_at.desc()).limit(5).all(),
     )
 

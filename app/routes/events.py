@@ -80,6 +80,10 @@ def list_events():
     if status_filter:
         query = query.filter(Event.status == status_filter)
 
+    organizer_filter = request.args.get("organizer", "").strip()
+    if organizer_filter:
+        query = query.filter(Event.organizer == organizer_filter)
+
     date_filter = request.args.get("date", "")
     if date_filter:
         try:
@@ -88,12 +92,19 @@ def list_events():
         except ValueError:
             flash("Invalid date filter ignored.", "error")
 
+    # Distinct list of organizers to empower filtering by specific department / organizer
+    all_organizers = [
+        o[0] for o in db.session.query(Event.organizer).distinct().order_by(Event.organizer.asc()).all() if o[0]
+    ]
+
     events = query.order_by(Event.start_datetime.asc()).all()
     return render_template(
         "events/list.html",
         events=events,
         statuses=[s.value for s in EventStatus],
         status_filter=status_filter,
+        organizer_filter=organizer_filter,
+        all_organizers=all_organizers,
         date_filter=date_filter,
         search_query=search_query,
         scope=scope,
@@ -170,7 +181,13 @@ def create_event():
             flash(f"Event '{event.name}' saved as Draft. You can request resources and submit for approval whenever you're ready.", "success")
             return redirect(url_for("events.view_event", event_id=event.id))
         elif validated_items:
-            flash(f"Event '{event.name}' created and request submitted to administrator for approval.", "success")
+            if is_admin():
+                flash(f"Event '{event.name}' created with {len(validated_items)} resource(s) requested.", "success")
+            else:
+                flash(f"Event '{event.name}' created and request submitted to administrator for approval.", "success")
+            return redirect(url_for("events.view_event", event_id=event.id))
+        elif is_admin():
+            flash(f"Event '{event.name}' created successfully.", "success")
             return redirect(url_for("events.view_event", event_id=event.id))
         else:
             flash(f"Event '{event.name}' created! Please select required campus resources to submit your request to the administrator.", "info")

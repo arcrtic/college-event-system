@@ -80,7 +80,8 @@
                     {% else %}
                     {% set nav_items = [
                         ('Dashboard', url_for('dashboard.index'), ep == 'dashboard.index', 0),
-                        ('My Events', url_for('events.list_events'), ep.startswith('events.'), 0),
+                        ('My Events', url_for('events.list_events', scope='mine'), ep.startswith('events.') and request.args.get('scope') != 'all', 0),
+                        ('Campus Calendar', url_for('events.list_events', scope='all'), ep.startswith('events.') and request.args.get('scope') == 'all', 0),
                         ('My Requests', url_for('requests.list_requests'), ep.startswith('requests.'), 0),
                         ('Resource Catalogue', url_for('resources.list_resources'), ep == 'resources.list_resources', 0),
                         ('Availability', url_for('resources.availability'), ep == 'resources.availability', 0),

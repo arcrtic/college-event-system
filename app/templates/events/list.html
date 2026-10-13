@@ -34,15 +34,26 @@
         <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4 items-end text-xs">
             <input type="hidden" name="scope" value="{{ scope }}">
             <!-- Search Keyword -->
-            <div class="sm:col-span-2 lg:col-span-5">
-                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Search Name / Organizer</label>
-                <input type="text" name="q" value="{{ search_query }}" placeholder="e.g. Technical Workshop, CS Dept..."
+            <div class="sm:col-span-2 lg:col-span-4">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Search Name / Keyword</label>
+                <input type="text" name="q" value="{{ search_query }}" placeholder="e.g. Workshop, Hackathon..."
                        class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
             </div>
 
-            <!-- Status Filter -->
+            <!-- Organizer Filter -->
             <div class="lg:col-span-3">
-                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Event Status</label>
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Organizer</label>
+                <select name="organizer" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
+                    <option value="">All Organizers</option>
+                    {% for org in all_organizers %}
+                        <option value="{{ org }}" {{ 'selected' if org == organizer_filter }}>{{ org }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Status Filter -->
+            <div class="lg:col-span-2">
+                <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Status</label>
                 <select name="status" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
                     <option value="">All Statuses</option>
                     {% for s in statuses %}
@@ -59,13 +70,13 @@
             </div>
 
             <!-- Action Buttons -->
-            <div class="lg:col-span-2 flex items-center gap-2">
-                <button type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition">
-                    Apply Filter
+            <div class="lg:col-span-1 flex items-center gap-1.5">
+                <button type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition" title="Apply filter">
+                    Filter
                 </button>
-                {% if status_filter or date_filter or search_query %}
-                <a href="{{ url_for('events.list_events', scope=scope) }}" class="py-2.5 px-3 border border-slate-300 text-slate-600 hover:bg-slate-50 font-semibold rounded-lg text-xs transition text-center">
-                    Clear
+                {% if status_filter or organizer_filter or date_filter or search_query %}
+                <a href="{{ url_for('events.list_events', scope=scope) }}" class="py-2.5 px-2.5 border border-slate-300 text-slate-600 hover:bg-slate-50 font-semibold rounded-lg text-xs transition text-center" title="Clear all filters">
+                    ✕
                 </a>
                 {% endif %}
             </div>
@@ -95,7 +106,20 @@
                             </a>
                             <div class="text-[11px] text-slate-400">Event ID #{{ event.id }}</div>
                         </td>
-                        <td class="px-5 py-4 text-slate-700 font-medium">{{ event.organizer }}</td>
+                        <td class="px-5 py-4 text-slate-700 font-medium">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <a href="{{ url_for('events.list_events', scope='all', organizer=event.organizer) }}" class="hover:text-teal-700 hover:underline" title="Filter by this organizer">
+                                    {{ event.organizer }}
+                                </a>
+                                {% if not is_admin %}
+                                    {% if event.owner_id == current_user.id %}
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800">You</span>
+                                    {% else %}
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">Other Organizer</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
                         <td class="px-5 py-4 text-slate-500 text-xs">{{ event.formatted_window }}</td>
                         <td class="px-5 py-4 text-slate-800 font-semibold">{{ event.expected_attendance }} <span class="text-xs text-slate-400 font-normal">attendees</span></td>
                         <td class="px-5 py-4 text-center">
