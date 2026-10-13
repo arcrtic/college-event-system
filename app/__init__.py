@@ -34,6 +34,7 @@ def create_app(config_class=Config):
     from app.routes.requests import requests_bp
     from app.routes.approvals import approvals_bp
     from app.routes.dashboard import dashboard_bp
+    from app.routes.admin import admin_bp
     from app.utils.auth import auth_bp
 
     app.register_blueprint(dashboard_bp)
@@ -41,6 +42,7 @@ def create_app(config_class=Config):
     app.register_blueprint(resources_bp)
     app.register_blueprint(requests_bp)
     app.register_blueprint(approvals_bp)
+    app.register_blueprint(admin_bp)
     app.register_blueprint(auth_bp)
 
     register_error_handlers(app)
@@ -48,10 +50,22 @@ def create_app(config_class=Config):
     @app.context_processor
     def inject_role():
         from app.utils.auth import is_admin, current_role, current_user
+        from app.models import ResourceRequest, RequestStatus
+
+        admin = is_admin()
+        pending_badge = 0
+        if admin:
+            try:
+                pending_badge = ResourceRequest.query.filter_by(
+                    status=RequestStatus.PENDING.value
+                ).count()
+            except Exception:
+                db.session.rollback()
         return dict(
-            is_admin=is_admin(),
+            is_admin=admin,
             current_role=current_role(),
             current_user=current_user(),
+            pending_badge=pending_badge,
         )
 
     # NOTE: db.create_all() is deliberately NOT called here synchronously.
@@ -91,6 +105,10 @@ def register_error_handlers(app):
     errors are handled at the route level with flash messages; these
     handlers are the safety net for anything unexpected (404s, 500s).
     """
+
+    @app.errorhandler(403)
+    def forbidden(e):
+        return render_template("errors/403.html"), 403
 
     @app.errorhandler(404)
     def not_found(e):

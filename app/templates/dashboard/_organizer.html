@@ -1,0 +1,155 @@
+<div class="space-y-6 sm:space-y-8">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <span class="inline-block px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[11px] font-bold uppercase tracking-wider mb-2">Organizer Workspace</span>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Hi {{ user.name }}</h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">Plan your events, request campus resources, and track approvals.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('events.create_event') }}"
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Create Event
+            </a>
+            <a href="{{ url_for('resources.availability') }}"
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs sm:text-sm font-semibold shadow-sm transition">
+                Check Availability
+            </a>
+        </div>
+    </div>
+
+    <!-- Action items -->
+    {% if rejected_events %}
+    <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 sm:p-5 space-y-3">
+        <h2 class="font-bold text-rose-900 text-sm sm:text-base">Rejected — needs your changes</h2>
+        {% for ev in rejected_events %}
+        <div class="bg-white border border-rose-200 rounded-lg p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="min-w-0">
+                <a href="{{ url_for('events.view_event', event_id=ev.id) }}" class="font-bold text-slate-900 hover:text-teal-700 text-sm">{{ ev.name }}</a>
+                <p class="text-xs text-rose-800 mt-0.5"><strong>Reason:</strong> {{ ev.rejection_reason or 'No reason was recorded.' }}</p>
+            </div>
+            <a href="{{ url_for('requests.create_request', event_id=ev.id) }}" class="px-3.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shrink-0">Fix &amp; Re-request</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if draft_events %}
+    <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 sm:p-5 space-y-3">
+        <h2 class="font-bold text-sky-900 text-sm sm:text-base">Drafts — no resources requested yet</h2>
+        {% for ev in draft_events %}
+        <div class="bg-white border border-sky-200 rounded-lg p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+                <a href="{{ url_for('events.view_event', event_id=ev.id) }}" class="font-bold text-slate-900 hover:text-teal-700 text-sm">{{ ev.name }}</a>
+                <p class="text-xs text-slate-500 mt-0.5">{{ ev.formatted_window }}</p>
+            </div>
+            <a href="{{ url_for('requests.create_request', event_id=ev.id) }}" class="px-3.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shrink-0">Request Resources</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Metric cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <div class="bg-white border border-slate-200 border-t-4 border-t-teal-400 rounded-xl p-5 shadow-sm">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">My Events</p>
+            <p class="text-3xl font-extrabold text-slate-900 mt-1.5">{{ my_total_events }}</p>
+            <a href="{{ url_for('events.list_events') }}" class="text-xs text-teal-700 hover:underline font-semibold mt-1 inline-block">View my events →</a>
+        </div>
+        <div class="bg-white border border-slate-200 border-t-4 border-t-amber-400 rounded-xl p-5 shadow-sm">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Awaiting Approval</p>
+            <p class="text-3xl font-extrabold text-amber-600 mt-1.5">{{ my_pending_count }}</p>
+            <a href="{{ url_for('requests.list_requests', status='Pending') }}" class="text-xs text-amber-700 hover:underline font-semibold mt-1 inline-block">Track status →</a>
+        </div>
+        <div class="bg-white border border-slate-200 border-t-4 border-t-emerald-400 rounded-xl p-5 shadow-sm">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Approved / Allocated</p>
+            <p class="text-3xl font-extrabold text-emerald-700 mt-1.5">{{ my_approved_count }}</p>
+            <a href="{{ url_for('requests.list_requests') }}" class="text-xs text-emerald-600 hover:underline font-semibold mt-1 inline-block">My requests →</a>
+        </div>
+        <div class="bg-white border border-slate-200 border-t-4 border-t-rose-400 rounded-xl p-5 shadow-sm">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Rejected</p>
+            <p class="text-3xl font-extrabold text-rose-600 mt-1.5">{{ status_counts.get('Rejected', 0) }}</p>
+            <span class="text-xs text-slate-400 mt-1 inline-block">Fix and resubmit</span>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
+
+        <div class="xl:col-span-2 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div class="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/75">
+                <h2 class="text-sm sm:text-base font-bold text-slate-900">My Upcoming Events</h2>
+                <a href="{{ url_for('events.list_events') }}" class="text-xs font-bold text-teal-700 hover:underline">All my events →</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs sm:text-sm">
+                    <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                        <tr>
+                            <th class="px-4 py-3">Event</th>
+                            <th class="px-4 py-3">Schedule</th>
+                            <th class="px-4 py-3">Attendance</th>
+                            <th class="px-4 py-3 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for event in upcoming_events %}
+                        <tr class="hover:bg-slate-50/80 cursor-pointer transition" onclick="window.location='{{ url_for('events.view_event', event_id=event.id) }}'">
+                            <td class="px-4 py-3.5 font-bold text-slate-900">{{ event.name }}</td>
+                            <td class="px-4 py-3.5 text-slate-500 text-xs">{{ event.formatted_window }}</td>
+                            <td class="px-4 py-3.5 text-slate-700 font-semibold">{{ event.expected_attendance }}</td>
+                            <td class="px-4 py-3.5 text-center">
+                                <span class="px-2.5 py-1 rounded-full text-xs font-bold
+                                    {% if event.status == 'Approved' %} bg-emerald-100 text-emerald-800
+                                    {% elif event.status == 'Pending' %} bg-amber-100 text-amber-800
+                                    {% else %} bg-slate-100 text-slate-700 {% endif %}">{{ event.status }}</span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="px-4 py-10 text-center text-slate-400 text-sm">
+                                You have no upcoming events yet.
+                                <a href="{{ url_for('events.create_event') }}" class="font-bold text-teal-700 hover:underline">Create your first one →</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="space-y-6 sm:space-y-8">
+            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-slate-900 text-sm uppercase tracking-wider">My Recent Requests</h2>
+                    <a href="{{ url_for('requests.list_requests') }}" class="text-xs font-bold text-teal-700 hover:underline">All →</a>
+                </div>
+                <ul class="space-y-3 text-xs">
+                    {% for req in recent_requests %}
+                    <li class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <a href="{{ url_for('requests.view_request', request_id=req.id) }}" class="font-bold text-slate-800 hover:text-teal-700 block truncate">{{ req.event.name }}</a>
+                            <span class="text-slate-500">{{ req.items_summary }}</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold shrink-0
+                            {% if req.status in ['Approved', 'Allocated'] %} bg-emerald-100 text-emerald-800
+                            {% elif req.status == 'Pending' %} bg-amber-100 text-amber-800
+                            {% else %} bg-rose-100 text-rose-800 {% endif %}">{{ req.status }}</span>
+                    </li>
+                    {% else %}
+                    <li class="text-slate-400">No requests yet.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+                <h2 class="font-bold text-slate-900 text-sm uppercase tracking-wider">How approval works</h2>
+                <ol class="space-y-2 text-xs text-slate-600 list-decimal list-inside">
+                    <li>Create your event (<strong>Draft</strong>).</li>
+                    <li>Request resources — it becomes <strong>Pending</strong>.</li>
+                    <li>An administrator approves and allocates it (<strong>Approved</strong>), or rejects it with a reason.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>

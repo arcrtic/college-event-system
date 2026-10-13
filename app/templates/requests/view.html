@@ -40,7 +40,8 @@
                         </button>
                     </form>
                     <form method="post" action="{{ url_for('approvals.reject_request', request_id=req.id) }}" class="inline"
-                          onsubmit="return confirm('Are you sure you want to reject this resource request?');">
+                          onsubmit="var r = prompt('Reason for rejection (the organizer will see this):'); if (r === null || r.trim().length < 3) { alert('A reason of at least 3 characters is required.'); return false; } this.reason.value = r.trim(); return true;">
+                        <input type="hidden" name="reason" value="">
                         <button type="submit" class="px-4 py-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold transition">
                             Reject
                         </button>
@@ -69,6 +70,16 @@
         </div>
     </div>
 
+    {% if req.status == 'Rejected' %}
+    <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 sm:p-5">
+        <h2 class="font-bold text-rose-900 text-sm sm:text-base">This request was rejected</h2>
+        <p class="text-xs sm:text-sm text-rose-800 mt-1"><strong>Reason:</strong> {{ req.rejection_reason or 'No reason was recorded.' }}</p>
+        {% if not is_admin and req.event.status in ['Rejected', 'Draft', 'Pending'] %}
+        <a href="{{ url_for('requests.create_request', event_id=req.event.id) }}" class="inline-block mt-3 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition">Fix &amp; Re-request</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Metadata Card -->
     <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
         <h2 class="font-bold text-slate-900 text-sm uppercase tracking-wider mb-4">Request Overview</h2>
@@ -89,6 +100,7 @@
                 <dt class="font-semibold text-slate-400 uppercase tracking-wider text-[11px]">Decision Date</dt>
                 <dd class="font-medium text-slate-600 mt-1">
                     {{ req.decided_at.strftime('%d %b %Y, %I:%M %p') if req.decided_at else 'Pending' }}
+                    {% if req.decided_by %}<span class="text-slate-400">· by {{ req.decided_by }}</span>{% endif %}
                 </dd>
             </div>
         </dl>

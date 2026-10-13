@@ -4,7 +4,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 
 from app.extensions import db
 from app.models import Event, EventStatus, RequestStatus, Allocation, ResourceRequest, RequestItem, ResourceType
-from app.utils.auth import admin_required
+from app.utils.auth import admin_required, can_manage_event, current_user, ensure_can_manage_event, is_admin
+from app.utils.audit import log_action
 from app.utils.booking import validate_request_rows
 from app.utils.validators import (
     ValidationError,
@@ -57,6 +58,15 @@ def list_events():
     """
     query = Event.query
 
+    # Organizers land on "My Events"; they may switch to the read-only campus
+    # calendar (scope=all). Admins always see every event.
+    user = current_user()
+    scope = request.args.get("scope", "all" if is_admin() else "mine")
+    if scope not in ("mine", "all"):
+        scope = "mine"
+    if scope == "mine":
+        query = query.filter(Event.owner_id == user.id)
+
     search_query = request.args.get("q", "").strip()
     if search_query:
         query = query.filter(
@@ -86,6 +96,7 @@ def list_events():
         status_filter=status_filter,
         date_filter=date_filter,
         search_query=search_query,
+        scope=scope,
     )
 
 
@@ -128,7 +139,7 @@ def create_event():
             )
 
         try:
-            event = Event(status=EventStatus.DRAFT.value, **data)
+            event = Event(status=EventStatus.DRAFT.value, owner_id=current_user().id, **data)
             db.session.add(event)
             db.session.flush()  # get event.id before creating its request
 
@@ -145,6 +156,7 @@ def create_event():
                     db.session.add(RequestItem(request_id=res_request.id, resource_id=resource.id, quantity=qty))
                 event.status = EventStatus.PENDING.value
 
+            log_action("event.create", "Event", event.id, f"Created '{event.name}' ({event.status})")
             db.session.commit()
         except Exception:
             db.session.rollback()
@@ -163,18 +175,20 @@ def create_event():
 @events_bp.route("/<int:event_id>")
 def view_event(event_id):
     event = Event.query.get_or_404(event_id)
-    return render_template("events/view.html", event=event)
+    return render_template("events/view.html", event=event, can_manage=can_manage_event(event))
 
 
 @events_bp.route("/<int:event_id>/edit", methods=["GET", "POST"])
 def edit_event(event_id):
     event = Event.query.get_or_404(event_id)
+    ensure_can_manage_event(event)
 
     if request.method == "POST":
         try:
             data = _build_event_from_form(request.form)
             for key, value in data.items():
                 setattr(event, key, value)
+            log_action("event.update", "Event", event.id, f"Edited '{event.name}'")
             db.session.commit()
             flash(f"Event '{event.name}' updated.", "success")
             return redirect(url_for("events.view_event", event_id=event.id))
@@ -201,6 +215,7 @@ def complete_event(event_id):
         return redirect(url_for("events.view_event", event_id=event.id))
 
     event.status = EventStatus.COMPLETED.value
+    log_action("event.complete", "Event", event.id, f"Marked '{event.name}' completed")
     db.session.commit()
     flash(f"Event '{event.name}' marked Completed.", "success")
     return redirect(url_for("events.view_event", event_id=event.id))
@@ -221,6 +236,7 @@ def cancel_event(event_id):
     same release logic used when a request is cancelled directly).
     """
     event = Event.query.get_or_404(event_id)
+    ensure_can_manage_event(event)
 
     active_requests = [
         req for req in event.requests
@@ -235,6 +251,10 @@ def cancel_event(event_id):
         req.status = RequestStatus.CANCELLED.value
 
     event.status = EventStatus.CANCELLED.value
+    log_action(
+        "event.cancel", "Event", event.id,
+        f"Cancelled '{event.name}'; {len(active_requests)} request(s) cancelled, allocations released",
+    )
     db.session.commit()
 
     if active_requests:

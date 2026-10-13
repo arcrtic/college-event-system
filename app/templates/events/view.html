@@ -26,19 +26,22 @@
                     {{ event.status }}
                 </span>
             </div>
-            <p class="text-xs sm:text-sm text-slate-500 mt-1">Organized by <strong class="text-slate-800">{{ event.organizer }}</strong></p>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">Organized by <strong class="text-slate-800">{{ event.organizer }}</strong>
+                {% if is_admin and event.owner %}<span class="text-slate-400">· account @{{ event.owner.username }}</span>{% endif %}
+                {% if can_manage and not is_admin %}<span class="ml-1 px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-bold uppercase">Your event</span>{% endif %}
+            </p>
         </div>
 
         <!-- Action Toolbar -->
         <div class="flex flex-wrap items-center gap-2 text-xs">
-            {% if event.is_editable %}
+            {% if event.is_editable and can_manage %}
             <a href="{{ url_for('events.edit_event', event_id=event.id) }}" 
                class="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition">
                 Edit Event
             </a>
             {% endif %}
 
-            {% if event.is_cancellable %}
+            {% if event.is_cancellable and can_manage %}
             <form method="post" action="{{ url_for('events.cancel_event', event_id=event.id) }}"
                   onsubmit="return confirm('Cancel this event? All associated resource requests will be cancelled and resources released.');" class="inline">
                 <button type="submit" 
@@ -58,7 +61,7 @@
             </form>
             {% endif %}
 
-            {% if event.status not in ['Cancelled', 'Completed'] %}
+            {% if event.status not in ['Cancelled', 'Completed'] and can_manage %}
             <a href="{{ url_for('requests.create_request', event_id=event.id) }}" 
                class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
@@ -67,6 +70,18 @@
             {% endif %}
         </div>
     </div>
+
+    {% if event.status == 'Rejected' %}
+    <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+            <h2 class="font-bold text-rose-900 text-sm sm:text-base">This event was rejected</h2>
+            <p class="text-xs sm:text-sm text-rose-800 mt-1"><strong>Reason from administrator:</strong> {{ event.rejection_reason or 'No reason was recorded.' }}</p>
+        </div>
+        {% if can_manage %}
+        <a href="{{ url_for('requests.create_request', event_id=event.id) }}" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0 transition">Fix &amp; Re-request</a>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <!-- Metadata & Workflow Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -131,6 +146,7 @@
 
     </div>
 
+    {% if can_manage %}
     <!-- Associated Resource Requests Table -->
     <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div class="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/75">
@@ -138,7 +154,7 @@
                 <h2 class="font-bold text-slate-900 text-sm sm:text-base">Resource Requests for this Event</h2>
                 <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-800">{{ event.requests|length }}</span>
             </div>
-            {% if event.status not in ['Cancelled', 'Completed'] %}
+            {% if event.status not in ['Cancelled', 'Completed'] and can_manage %}
             <a href="{{ url_for('requests.create_request', event_id=event.id) }}" class="text-xs font-bold text-indigo-600 hover:underline">
                 + New Request
             </a>
@@ -193,6 +209,7 @@
             </table>
         </div>
     </div>
+    {% endif %}
 
 </div>
 {% endblock %}

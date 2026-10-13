@@ -23,6 +23,10 @@ services:
         value: admin123
       - key: FLASK_DEBUG
         value: "0"
+      - key: SHOW_DEMO_LOGIN
+        value: "1"
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
 
 databases:
   - name: campusalloc-db

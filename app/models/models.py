@@ -12,7 +12,14 @@ Design decisions:
 from datetime import datetime
 from enum import Enum
 
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from app.extensions import db
+
+
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    ORGANIZER = "organizer"
 
 
 class EventStatus(str, Enum):
@@ -41,6 +48,52 @@ class ResourceType(str, Enum):
     COMPUTER = "Computer"
 
 
+class User(db.Model):
+    """A real account. Passwords are stored only as salted hashes."""
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(40), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    department = db.Column(db.String(100), nullable=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default=UserRole.ORGANIZER.value)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    @property
+    def is_admin(self):
+        return self.role == UserRole.ADMIN.value
+
+    def __repr__(self):
+        return f"<User {self.username} {self.role}>"
+
+
+class AuditLog(db.Model):
+    """Append-only record of who did what (approvals, allocations, cancellations...)."""
+    __tablename__ = "audit_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    username = db.Column(db.String(40), nullable=False, default="system")
+    action = db.Column(db.String(60), nullable=False, index=True)
+    entity_type = db.Column(db.String(30), nullable=False)
+    entity_id = db.Column(db.Integer, nullable=True)
+    details = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    user = db.relationship("User")
+
+    def __repr__(self):
+        return f"<AuditLog {self.action} {self.entity_type}#{self.entity_id} by {self.username}>"
+
+
 class Event(db.Model):
     __tablename__ = "events"
 
@@ -51,14 +104,27 @@ class Event(db.Model):
     start_datetime = db.Column(db.DateTime, nullable=False)
     end_datetime = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), nullable=False, default=EventStatus.DRAFT.value)
+    # The account that created the event. Nullable so legacy rows (created
+    # before accounts existed) remain valid; only admins can manage those.
+    owner_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner = db.relationship("User", foreign_keys=[owner_id])
 
     requests = db.relationship(
         "ResourceRequest", backref="event", cascade="all, delete-orphan", lazy=True,
         order_by="ResourceRequest.created_at.desc()"
     )
+
+    @property
+    def rejection_reason(self):
+        """Reason given by the admin on the most recent rejected request."""
+        rejected = [r for r in self.requests if r.status == RequestStatus.REJECTED.value and r.rejection_reason]
+        if not rejected:
+            return None
+        return max(rejected, key=lambda r: r.decided_at or r.created_at).rejection_reason
 
     @property
     def is_editable(self):
@@ -119,6 +185,8 @@ class ResourceRequest(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     decided_at = db.Column(db.DateTime, nullable=True)
+    decided_by = db.Column(db.String(40), nullable=True)
+    rejection_reason = db.Column(db.Text, nullable=True)
 
     items = db.relationship(
         "RequestItem", backref="request", cascade="all, delete-orphan", lazy=True

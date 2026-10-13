@@ -8,7 +8,7 @@ os.environ["AUTO_SEED"] = "0"
 
 from app import create_app
 from app.extensions import db
-from app.models import Event, EventStatus, Resource, ResourceType, ResourceRequest, RequestItem, RequestStatus, Allocation
+from app.models import Event, EventStatus, Resource, ResourceType, ResourceRequest, RequestItem, RequestStatus, Allocation, User
 from app.utils.booking import (
     overlaps,
     booked_quantity,
@@ -55,7 +55,19 @@ class TestCollegeEventSystem(unittest.TestCase):
             name="Wireless Mic Set", type=ResourceType.MICROPHONE.value, capacity=None, total_quantity=5, is_active=True
         )
 
+        self.admin_user = User(
+            username="testadmin", name="Test Admin", role="admin"
+        )
+        self.admin_user.set_password("admin123")
+
+        self.organizer_user = User(
+            username="testorg", name="Test Organizer", role="organizer"
+        )
+        self.organizer_user.set_password("organizer123")
+
         db.session.add_all([
+            self.admin_user,
+            self.organizer_user,
             self.auditorium_large,
             self.auditorium_small,
             self.auditorium_inactive,
@@ -111,6 +123,7 @@ class TestCollegeEventSystem(unittest.TestCase):
             start_datetime=start,
             end_datetime=end,
             status=EventStatus.APPROVED.value,
+            owner_id=self.organizer_user.id,
         )
         db.session.add(event)
         db.session.flush()
@@ -143,9 +156,9 @@ class TestCollegeEventSystem(unittest.TestCase):
         # Auditorium should currently be booked
         self.assertEqual(booked_quantity(self.auditorium_small.id, start, end), 1)
 
-        # Cancel event via route
+        # Cancel event via route (as organizer owner)
         with self.client.session_transaction() as sess:
-            sess["role"] = "organizer"
+            sess["user_id"] = self.organizer_user.id
         res = self.client.post(f"/events/{event.id}/cancel", follow_redirects=True)
         self.assertEqual(res.status_code, 200)
 
@@ -272,6 +285,7 @@ class TestCollegeEventSystem(unittest.TestCase):
             start_datetime=start,
             end_datetime=end,
             status=EventStatus.APPROVED.value,
+            owner_id=self.organizer_user.id,
         )
         db.session.add(event)
         db.session.flush()
@@ -293,7 +307,7 @@ class TestCollegeEventSystem(unittest.TestCase):
 
         # Admin tries to allocate
         with self.client.session_transaction() as sess:
-            sess["role"] = "admin"
+            sess["user_id"] = self.admin_user.id
         res = self.client.post(f"/approvals/{req.id}/allocate", follow_redirects=True)
 
         # Allocation must fail because projector is unavailable
@@ -309,6 +323,79 @@ class TestCollegeEventSystem(unittest.TestCase):
         # Main Auditorium and Microphones must NOT have partial locks
         self.assertEqual(booked_quantity(self.auditorium_large.id, start, end), 0)
         self.assertEqual(booked_quantity(self.microphone.id, start, end), 0)
+
+    # 7. Role-Based Access Control & Rejection Workflows
+    def test_role_based_access_control(self):
+        now = datetime.now() + timedelta(days=5)
+        # Create an event owned by user 999 (not self.organizer_user)
+        other_event = Event(
+            name="Other Organizer Event",
+            organizer="Other Org",
+            expected_attendance=50,
+            start_datetime=now,
+            end_datetime=now + timedelta(hours=2),
+            status=EventStatus.PENDING.value,
+            owner_id=999,
+        )
+        db.session.add(other_event)
+        db.session.commit()
+
+        # Organizer cannot cancel another organizer's event (403 Forbidden)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.organizer_user.id
+        res = self.client.post(f"/events/{other_event.id}/cancel")
+        self.assertEqual(res.status_code, 403)
+
+        # Organizer cannot access admin approvals hub (403 Forbidden)
+        res_approvals = self.client.get("/approvals/")
+        self.assertEqual(res_approvals.status_code, 403)
+
+        # Admin can access approvals hub
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.admin_user.id
+        res_admin = self.client.get("/approvals/")
+        self.assertEqual(res_admin.status_code, 200)
+
+    def test_rejection_workflow_with_reason(self):
+        now = datetime.now() + timedelta(days=6)
+        event = Event(
+            name="Coding Contest",
+            organizer="Coding Club",
+            expected_attendance=100,
+            start_datetime=now,
+            end_datetime=now + timedelta(hours=3),
+            status=EventStatus.PENDING.value,
+            owner_id=self.organizer_user.id,
+        )
+        db.session.add(event)
+        db.session.flush()
+
+        req = ResourceRequest(
+            event_id=event.id,
+            start_datetime=now,
+            end_datetime=now + timedelta(hours=3),
+            status=RequestStatus.PENDING.value,
+        )
+        db.session.add(req)
+        db.session.commit()
+
+        # Admin rejects request with a reason
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.admin_user.id
+        res = self.client.post(
+            f"/approvals/{req.id}/reject",
+            data={"reason": "Auditorium is reserved for institutional maintenance."},
+            follow_redirects=True,
+        )
+        self.assertEqual(res.status_code, 200)
+
+        # Verify request and event transition to Rejected and store the reason
+        db.session.refresh(req)
+        db.session.refresh(event)
+        self.assertEqual(req.status, RequestStatus.REJECTED.value)
+        self.assertEqual(req.rejection_reason, "Auditorium is reserved for institutional maintenance.")
+        self.assertEqual(event.status, EventStatus.REJECTED.value)
+        self.assertEqual(event.rejection_reason, "Auditorium is reserved for institutional maintenance.")
 
 
 if __name__ == "__main__":

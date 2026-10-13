@@ -44,89 +44,92 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
 
-    <!-- Top Navigation Bar -->
-    <nav class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-sm">
+    {% set ep = request.endpoint or '' %}
+
+    <!-- Top Navigation Bar. Colour-coded by role: indigo = Administrator, teal = Organizer -->
+    <nav class="bg-slate-900 border-b-2 {{ 'border-indigo-500' if is_admin else 'border-teal-500' if current_user else 'border-slate-800' }} sticky top-0 z-50 shadow-sm">
         <div class="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10">
             <div class="flex items-center justify-between h-16">
-                
+
                 <!-- Brand & Desktop Navigation -->
                 <div class="flex items-center gap-8">
                     <a href="{{ url_for('dashboard.index') }}" class="flex items-center gap-3 group">
-                        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm group-hover:bg-indigo-500 transition">
+                        <div class="w-9 h-9 rounded-xl {{ 'bg-indigo-600 group-hover:bg-indigo-500' if is_admin else 'bg-teal-600 group-hover:bg-teal-500' }} text-white flex items-center justify-center font-bold text-lg shadow-sm transition">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                             </svg>
                         </div>
                         <div>
-                            <span class="text-white font-bold tracking-tight text-base group-hover:text-indigo-200 transition">CampusAlloc</span>
-                            <span class="hidden xl:inline-block text-xs font-normal text-slate-400 ml-1.5">— Event & Resource System</span>
+                            <span class="text-white font-bold tracking-tight text-base transition">CampusAlloc</span>
+                            <span class="hidden xl:inline-block text-xs font-normal text-slate-400 ml-1.5">— Event &amp; Resource System</span>
                         </div>
                     </a>
 
-                    <!-- Desktop Nav Links -->
+                    {% if current_user %}
+                    {# Different workspace per role: admins get the control-center menu, organizers get "My ..." menus #}
+                    {% if is_admin %}
+                    {% set nav_items = [
+                        ('Dashboard', url_for('dashboard.index'), ep == 'dashboard.index', 0),
+                        ('Approvals', url_for('approvals.list_approvals'), ep.startswith('approvals.'), pending_badge),
+                        ('All Events', url_for('events.list_events'), ep.startswith('events.'), 0),
+                        ('Requests', url_for('requests.list_requests'), ep.startswith('requests.'), 0),
+                        ('Resources', url_for('resources.list_resources'), ep in ['resources.list_resources', 'resources.create_resource', 'resources.edit_resource'], 0),
+                        ('Availability', url_for('resources.availability'), ep == 'resources.availability', 0),
+                        ('Audit Log', url_for('admin.audit_log'), ep.startswith('admin.'), 0),
+                    ] %}
+                    {% else %}
+                    {% set nav_items = [
+                        ('Dashboard', url_for('dashboard.index'), ep == 'dashboard.index', 0),
+                        ('My Events', url_for('events.list_events'), ep.startswith('events.'), 0),
+                        ('My Requests', url_for('requests.list_requests'), ep.startswith('requests.'), 0),
+                        ('Resource Catalogue', url_for('resources.list_resources'), ep == 'resources.list_resources', 0),
+                        ('Availability', url_for('resources.availability'), ep == 'resources.availability', 0),
+                    ] %}
+                    {% endif %}
+
                     <div class="hidden md:flex items-center gap-1 text-sm font-medium">
-                        <a href="{{ url_for('dashboard.index') }}" 
-                           class="px-3.5 py-2 rounded-lg transition {{ 'bg-indigo-600 text-white' if request.endpoint == 'dashboard.index' else 'text-slate-300 hover:text-white hover:bg-slate-800' }}">
-                            Dashboard
+                        {% for label, href, active, badge in nav_items %}
+                        <a href="{{ href }}"
+                           class="px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 {{ (('bg-indigo-600' if is_admin else 'bg-teal-600') ~ ' text-white') if active else 'text-slate-300 hover:text-white hover:bg-slate-800' }}">
+                            {{ label }}
+                            {% if badge %}
+                            <span class="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-400 text-slate-900 text-[11px] font-extrabold flex items-center justify-center">{{ badge }}</span>
+                            {% endif %}
                         </a>
-                        <a href="{{ url_for('events.list_events') }}" 
-                           class="px-3.5 py-2 rounded-lg transition {{ 'bg-indigo-600 text-white' if request.endpoint and request.endpoint.startswith('events.') else 'text-slate-300 hover:text-white hover:bg-slate-800' }}">
-                            Events
-                        </a>
-                        <a href="{{ url_for('resources.list_resources') }}" 
-                           class="px-3.5 py-2 rounded-lg transition {{ 'bg-indigo-600 text-white' if request.endpoint in ['resources.list_resources', 'resources.create_resource', 'resources.edit_resource'] else 'text-slate-300 hover:text-white hover:bg-slate-800' }}">
-                            Resources
-                        </a>
-                        <a href="{{ url_for('requests.list_requests') }}" 
-                           class="px-3.5 py-2 rounded-lg transition {{ 'bg-indigo-600 text-white' if request.endpoint and request.endpoint.startswith('requests.') else 'text-slate-300 hover:text-white hover:bg-slate-800' }}">
-                            Requests
-                        </a>
-                        <a href="{{ url_for('resources.availability') }}" 
-                           class="px-3.5 py-2 rounded-lg transition {{ 'bg-indigo-600 text-white' if request.endpoint == 'resources.availability' else 'text-slate-300 hover:text-white hover:bg-slate-800' }}">
-                            Availability
-                        </a>
-                        {% if is_admin %}
-                        <a href="{{ url_for('approvals.list_approvals') }}" 
-                           class="px-3.5 py-2 rounded-lg transition {{ 'bg-indigo-600 text-white' if request.endpoint and request.endpoint.startswith('approvals.') else 'text-slate-300 hover:text-white hover:bg-slate-800' }}">
-                            Approvals
-                        </a>
-                        {% endif %}
+                        {% endfor %}
                     </div>
+                    {% endif %}
                 </div>
 
                 <!-- Desktop User Control -->
+                {% if current_user %}
                 <div class="hidden md:flex items-center gap-3">
-                    <div class="flex items-center gap-2 pr-3 border-r border-slate-700">
-                        <span class="text-xs text-slate-400">Role:</span>
-                        <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full {{ 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' if is_admin else 'bg-slate-700 text-slate-200' }}">
-                            {{ 'Administrator' if is_admin else 'Organizer' }}
-                        </span>
+                    <div class="flex items-center gap-2.5 pr-3 border-r border-slate-700">
+                        <div class="w-8 h-8 rounded-full {{ 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' if is_admin else 'bg-teal-500/20 text-teal-300 border-teal-500/40' }} border flex items-center justify-center text-xs font-extrabold">
+                            {{ current_user.name[:1]|upper }}
+                        </div>
+                        <div class="leading-tight">
+                            <div class="text-xs font-semibold text-white">{{ current_user.name }}</div>
+                            <div class="text-[10px] font-bold uppercase tracking-wider {{ 'text-indigo-300' if is_admin else 'text-teal-300' }}">
+                                {{ 'Administrator' if is_admin else 'Organizer' }}
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Role Switch Form -->
-                    <form method="post" action="{{ url_for('auth.switch_role') }}" class="inline">
-                        <input type="hidden" name="role" value="{{ 'organizer' if is_admin else 'admin' }}">
-                        <button type="submit" 
-                                class="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-                            </svg>
-                            Switch to {{ 'Organizer' if is_admin else 'Admin' }}
+                    <form method="post" action="{{ url_for('auth.logout') }}" class="inline">
+                        <button type="submit"
+                                class="text-xs text-slate-400 hover:text-rose-300 px-2.5 py-1.5 rounded hover:bg-slate-800 transition">
+                            Sign Out
                         </button>
                     </form>
-
-                    <a href="{{ url_for('auth.logout') }}" 
-                       class="text-xs text-slate-400 hover:text-rose-300 px-2.5 py-1.5 rounded hover:bg-slate-800 transition">
-                        Sign Out
-                    </a>
                 </div>
 
                 <!-- Mobile Hamburger Toggle Button -->
                 <div class="flex md:hidden items-center gap-2">
-                    <span class="text-xs font-semibold px-2 py-0.5 rounded {{ 'bg-indigo-600 text-white' if is_admin else 'bg-slate-700 text-slate-300' }}">
-                        {{ 'Admin' if is_admin else 'Org' }}
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded {{ 'bg-indigo-600 text-white' if is_admin else 'bg-teal-600 text-white' }}">
+                        {{ 'Admin' if is_admin else 'Organizer' }}
                     </span>
-                    <button type="button" id="mobile-menu-btn" 
+                    <button type="button" id="mobile-menu-btn"
                             class="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none"
                             aria-label="Toggle navigation menu">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,59 +137,46 @@
                         </svg>
                     </button>
                 </div>
+                {% else %}
+                <div class="flex items-center gap-2 text-xs font-semibold">
+                    <a href="{{ url_for('auth.login') }}" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Sign In</a>
+                    {% if config.get('ALLOW_REGISTRATION', True) %}
+                    <a href="{{ url_for('auth.register') }}" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white transition">Register</a>
+                    {% endif %}
+                </div>
+                {% endif %}
 
             </div>
         </div>
 
+        {% if current_user %}
         <!-- Mobile Navigation Menu Dropdown -->
         <div id="mobile-menu" class="hidden md:hidden border-t border-slate-800 bg-slate-900 px-4 pt-3 pb-5 space-y-2">
             <div class="space-y-1 text-sm font-medium">
-                <a href="{{ url_for('dashboard.index') }}" 
-                   class="block px-3 py-2 rounded-lg {{ 'bg-indigo-600 text-white' if request.endpoint == 'dashboard.index' else 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                    Dashboard
+                {% for label, href, active, badge in nav_items %}
+                <a href="{{ href }}"
+                   class="flex items-center justify-between px-3 py-2 rounded-lg {{ (('bg-indigo-600' if is_admin else 'bg-teal-600') ~ ' text-white') if active else 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
+                    <span>{{ label }}</span>
+                    {% if badge %}
+                    <span class="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-400 text-slate-900 text-[11px] font-extrabold flex items-center justify-center">{{ badge }}</span>
+                    {% endif %}
                 </a>
-                <a href="{{ url_for('events.list_events') }}" 
-                   class="block px-3 py-2 rounded-lg {{ 'bg-indigo-600 text-white' if request.endpoint and request.endpoint.startswith('events.') else 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                    Events
-                </a>
-                <a href="{{ url_for('resources.list_resources') }}" 
-                   class="block px-3 py-2 rounded-lg {{ 'bg-indigo-600 text-white' if request.endpoint in ['resources.list_resources', 'resources.create_resource', 'resources.edit_resource'] else 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                    Resources
-                </a>
-                <a href="{{ url_for('requests.list_requests') }}" 
-                   class="block px-3 py-2 rounded-lg {{ 'bg-indigo-600 text-white' if request.endpoint and request.endpoint.startswith('requests.') else 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                    Requests
-                </a>
-                <a href="{{ url_for('resources.availability') }}" 
-                   class="block px-3 py-2 rounded-lg {{ 'bg-indigo-600 text-white' if request.endpoint == 'resources.availability' else 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                    Availability
-                </a>
-                {% if is_admin %}
-                <a href="{{ url_for('approvals.list_approvals') }}" 
-                   class="block px-3 py-2 rounded-lg {{ 'bg-indigo-600 text-white' if request.endpoint and request.endpoint.startswith('approvals.') else 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                    Approvals
-                </a>
-                {% endif %}
+                {% endfor %}
             </div>
 
             <div class="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                <form method="post" action="{{ url_for('auth.switch_role') }}" class="inline">
-                    <input type="hidden" name="role" value="{{ 'organizer' if is_admin else 'admin' }}">
-                    <button type="submit" class="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 font-semibold border border-slate-700">
-                        Switch to {{ 'Organizer' if is_admin else 'Admin' }}
-                    </button>
+                <span class="text-slate-400">Signed in as <strong class="text-white">{{ current_user.name }}</strong></span>
+                <form method="post" action="{{ url_for('auth.logout') }}" class="inline">
+                    <button type="submit" class="text-slate-300 hover:text-white underline py-2">Sign Out</button>
                 </form>
-
-                <a href="{{ url_for('auth.logout') }}" class="text-slate-400 hover:text-white underline py-2">
-                    Sign Out
-                </a>
             </div>
         </div>
+        {% endif %}
     </nav>
 
     <!-- Main Full-Screen Responsive Container -->
     <main class="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 sm:py-8">
-        
+
         <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}

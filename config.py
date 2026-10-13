@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -38,10 +39,23 @@ class Config:
     if _db_url.startswith("postgresql+psycopg2://"):
         SQLALCHEMY_ENGINE_OPTIONS = {"connect_args": {"connect_timeout": 5}}
 
-    # Shared passcode required to switch into the Admin role in the app's
-    # simple role-separation layer (see app/utils/auth.py). This is NOT a
-    # real per-user auth system -- change it via .env before any real use.
+    # Password given to the seeded `admin` account the first time it is created
+    # (see seed.py). After that, the password lives only as a hash in the DB.
     ADMIN_PASSCODE = os.environ.get('ADMIN_PASSCODE', 'admin123')
+
+    # When "1", the sign-in page shows the demo accounts' credentials. Meant for
+    # demos/assignment review only -- leave unset in a real deployment.
+    SHOW_DEMO_LOGIN = os.environ.get('SHOW_DEMO_LOGIN', '0') == '1'
+
+    # Allow visitors to self-register (always as organizers, never admins).
+    ALLOW_REGISTRATION = os.environ.get('ALLOW_REGISTRATION', '1') == '1'
+
+    # Session cookie hardening. SECURE is opt-in so plain-http local dev works;
+    # render.yaml turns it on for the HTTPS production deployment.
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
 
     # Used by the "prevent double booking" check and other business logic
     # that needs a consistent notion of "now".

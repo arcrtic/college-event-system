@@ -7,6 +7,9 @@ from app.models.models import (
     RequestStatus,
     RequestItem,
     Allocation,
+    User,
+    UserRole,
+    AuditLog,
 )
 
 __all__ = [
@@ -18,4 +21,7 @@ __all__ = [
     "RequestStatus",
     "RequestItem",
     "Allocation",
+    "User",
+    "UserRole",
+    "AuditLog",
 ]

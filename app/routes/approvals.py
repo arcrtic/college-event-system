@@ -1,9 +1,12 @@
+from datetime import datetime
+
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 
 from app.extensions import db
 from app.models import ResourceRequest, RequestStatus, Allocation, EventStatus
 from app.utils.booking import check_availability
-from app.utils.auth import admin_required
+from app.utils.auth import admin_required, current_user
+from app.utils.audit import log_action
 
 approvals_bp = Blueprint("approvals", __name__, url_prefix="/approvals")
 
@@ -50,6 +53,9 @@ def approve_request(request_id):
         return redirect(request.referrer or url_for("approvals.list_approvals"))
 
     req.status = RequestStatus.APPROVED.value
+    req.decided_at = datetime.utcnow()
+    req.decided_by = current_user().username
+    log_action("request.approve", "ResourceRequest", req.id, f"Approved request for '{req.event.name}'")
     db.session.commit()
     flash(f"Request #{req.id} approved. Proceed to Allocate to lock in resources.", "success")
     return redirect(request.referrer or url_for("approvals.list_approvals"))
@@ -63,7 +69,15 @@ def reject_request(request_id):
         flash("Only pending requests can be rejected.", "error")
         return redirect(request.referrer or url_for("approvals.list_approvals"))
 
+    reason = request.form.get("reason", "").strip()
+    if len(reason) < 3:
+        flash("Please give a reason for the rejection so the organizer knows what to fix.", "error")
+        return redirect(request.referrer or url_for("approvals.list_approvals"))
+
     req.status = RequestStatus.REJECTED.value
+    req.rejection_reason = reason[:1000]
+    req.decided_at = datetime.utcnow()
+    req.decided_by = current_user().username
 
     # If ALL of this event's requests are now terminal (Rejected or Cancelled),
     # transition the event itself to Rejected so its status reflects reality.
@@ -76,6 +90,7 @@ def reject_request(request_id):
     if all_terminal and event.status == EventStatus.PENDING.value:
         event.status = EventStatus.REJECTED.value
 
+    log_action("request.reject", "ResourceRequest", req.id, f"Rejected request for '{event.name}': {reason}")
     db.session.commit()
     flash(f"Request #{req.id} has been rejected.", "success")
     if all_terminal:
@@ -132,6 +147,11 @@ def allocate_request(request_id):
         if req.event.status != EventStatus.APPROVED.value:
             req.event.status = EventStatus.APPROVED.value
 
+        req.decided_by = current_user().username
+        log_action(
+            "request.allocate", "ResourceRequest", req.id,
+            f"Allocated {len(req.items)} item(s) for '{req.event.name}'",
+        )
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -162,6 +182,7 @@ def cancel_request(request_id):
         )
 
     req.status = RequestStatus.CANCELLED.value
+    log_action("request.cancel", "ResourceRequest", req.id, f"Cancelled request for '{req.event.name}'; resources released")
     db.session.commit()
     flash(f"Request #{req.id} cancelled. Any locked resources have been released.", "success")
     return redirect(request.referrer or url_for("requests.view_request", request_id=req.id))

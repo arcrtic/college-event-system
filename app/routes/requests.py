@@ -1,9 +1,11 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, abort, render_template, request, redirect, url_for, flash
 
 from app.extensions import db
 from app.models import Event, EventStatus, ResourceType, ResourceRequest, RequestItem, RequestStatus, Allocation
 from app.utils.validators import ValidationError, parse_datetime, validate_event_window
 from app.utils.booking import validate_request_rows
+from app.utils.auth import current_user, is_admin
+from app.utils.audit import log_action
 
 requests_bp = Blueprint("requests", __name__, url_prefix="/requests")
 
@@ -12,6 +14,11 @@ requests_bp = Blueprint("requests", __name__, url_prefix="/requests")
 def list_requests():
     status_filter = request.args.get("status", "")
     query = ResourceRequest.query
+    if not is_admin():
+        # Organizers only ever see requests belonging to their own events.
+        query = query.join(Event, ResourceRequest.event_id == Event.id).filter(
+            Event.owner_id == current_user().id
+        )
     if status_filter:
         query = query.filter(ResourceRequest.status == status_filter)
     reqs = query.order_by(ResourceRequest.created_at.desc()).all()
@@ -26,6 +33,8 @@ def list_requests():
 @requests_bp.route("/<int:request_id>")
 def view_request(request_id):
     req = ResourceRequest.query.get_or_404(request_id)
+    if not is_admin() and req.event.owner_id != current_user().id:
+        abort(403)
     # Fetch active allocations if allocated
     allocations = Allocation.query.filter(
         Allocation.request_item_id.in_([item.id for item in req.items])
@@ -38,14 +47,17 @@ def view_request(request_id):
 def create_request(event_id=None):
     # Available events for requesting resources (Draft, Pending, Approved, or Rejected).
     # Rejected events are included so organizers can resubmit after a rejection.
-    available_events = Event.query.filter(
+    available_events_query = Event.query.filter(
         Event.status.in_([
             EventStatus.DRAFT.value,
             EventStatus.PENDING.value,
             EventStatus.APPROVED.value,
             EventStatus.REJECTED.value,
         ])
-    ).order_by(Event.start_datetime.asc()).all()
+    )
+    if not is_admin():
+        available_events_query = available_events_query.filter(Event.owner_id == current_user().id)
+    available_events = available_events_query.order_by(Event.start_datetime.asc()).all()
 
     selected_event = None
     if event_id:
@@ -56,6 +68,9 @@ def create_request(event_id=None):
             selected_event = Event.query.get(ev_id)
 
     resource_types = [t.value for t in ResourceType]
+
+    if selected_event and not is_admin() and selected_event.owner_id != current_user().id:
+        abort(403)
 
     if selected_event and selected_event.status in (EventStatus.CANCELLED.value, EventStatus.COMPLETED.value):
         flash(f"Cannot request resources for a {selected_event.status.lower()} event.", "error")
@@ -140,6 +155,10 @@ def create_request(event_id=None):
             if selected_event.status in (EventStatus.DRAFT.value, EventStatus.REJECTED.value):
                 selected_event.status = EventStatus.PENDING.value
 
+            log_action(
+                "request.submit", "ResourceRequest", res_request.id,
+                f"Requested {len(validated_items)} resource(s) for '{selected_event.name}'",
+            )
             db.session.commit()
         except Exception:
             db.session.rollback()

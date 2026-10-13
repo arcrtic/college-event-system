@@ -199,8 +199,8 @@ When a resource is unavailable (fully booked or insufficient units) or unsuitabl
 
 | Role | Username | Password | Permissions |
 | :--- | :--- | :--- | :--- |
-| **Administrator** | `admin` | `admin123` | Full access: Add/Edit/Toggle resources, Approve/Reject requests, Allocate resources, Mark events completed |
-| **Organizer** | `organizer` | `org123` | Event creation, edit draft events, submit resource requests, check availability, cancel own events |
+| **Administrator** | `admin` | `admin123` | Full access: Add/Edit/Toggle resources, Approve/Reject requests with reason, Allocate resources, Mark events completed, Audit log |
+| **Organizer** | `organizer` | `organizer123` | Event creation, edit/cancel own events, submit resource requests, view rejection reasons, self-registration |
 
 ---
 

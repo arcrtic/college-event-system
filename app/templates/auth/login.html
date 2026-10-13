@@ -3,52 +3,29 @@
 
 {% block content %}
 <div class="max-w-md mx-auto my-8 sm:my-16 bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
-    
+
     <div>
-        <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg mb-3 shadow-sm">
+        <div class="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-lg mb-3 shadow-sm">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v1h1a1 1 0 011 1v5a1 1 0 01-1 1H8a1 1 0 01-1-1v-5a1 1 0 011-1h1v-1c0-1.1.9-2 2-2z"/>
             </svg>
         </div>
-        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">CampusAlloc Sign In</h1>
-        <p class="text-xs sm:text-sm text-slate-500 mt-1">Log in to manage events, request equipment, and view schedules.</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Sign in to CampusAlloc</h1>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">Organizers manage their events and resource requests. Administrators review and allocate.</p>
     </div>
 
-    <!-- 1-Click Quick Demo Sign In -->
-    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
-        <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-600">1-Click Quick Demo Access</span>
-        <div class="grid grid-cols-2 gap-3">
-            <form method="post" action="{{ url_for('auth.login') }}">
-                <input type="hidden" name="quick_login" value="admin">
-                <input type="hidden" name="next" value="{{ next_url }}">
-                <button type="submit" class="w-full py-2.5 px-3 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold text-center transition">
-                    Admin User
-                </button>
-            </form>
-
-            <form method="post" action="{{ url_for('auth.login') }}">
-                <input type="hidden" name="quick_login" value="organizer">
-                <input type="hidden" name="next" value="{{ next_url }}">
-                <button type="submit" class="w-full py-2.5 px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold text-center transition">
-                    Event Organizer
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Standard Login Form -->
     <form method="post" action="{{ url_for('auth.login') }}" class="space-y-4 text-xs sm:text-sm">
         <input type="hidden" name="next" value="{{ next_url }}">
 
         <div>
-            <label class="block font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-1.5">Username</label>
-            <input type="text" name="username" placeholder="e.g. admin or organizer" autofocus
+            <label for="username" class="block font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-1.5">Username</label>
+            <input id="username" type="text" name="username" required autofocus autocomplete="username"
                    class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
         </div>
 
         <div>
-            <label class="block font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-1.5">Password</label>
-            <input type="password" name="password" placeholder="••••••••" required
+            <label for="password" class="block font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-1.5">Password</label>
+            <input id="password" type="password" name="password" placeholder="••••••••" required autocomplete="current-password"
                    class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-indigo-500 transition">
         </div>
 
@@ -56,6 +33,21 @@
             Sign In
         </button>
     </form>
+
+    {% if allow_registration %}
+    <p class="text-xs text-slate-500 text-center">
+        New organizer?
+        <a href="{{ url_for('auth.register') }}" class="font-bold text-teal-700 hover:underline">Create an account</a>
+    </p>
+    {% endif %}
+
+    {% if show_demo %}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2 text-xs text-amber-900">
+        <span class="block text-[11px] font-bold uppercase tracking-wider">Demo accounts (review mode)</span>
+        <div class="flex justify-between"><span>Administrator</span><code class="font-semibold">admin / admin123</code></div>
+        <div class="flex justify-between"><span>Organizer</span><code class="font-semibold">organizer / organizer123</code></div>
+    </div>
+    {% endif %}
 
 </div>
 {% endblock %}

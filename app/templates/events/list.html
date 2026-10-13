@@ -7,10 +7,20 @@
     <!-- Header & Action -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Events Directory</h1>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                {% if is_admin %}All Events{% elif scope == 'all' %}Campus Events Calendar{% else %}My Events{% endif %}
+            </h1>
             <p class="text-xs sm:text-sm text-slate-500 mt-1">
-                Browse, search, and manage all scheduled college events and workshops.
+                {% if is_admin %}Browse, search, and oversee every scheduled college event.
+                {% elif scope == 'all' %}Everything on campus (read-only). Switch back to manage your own events.
+                {% else %}Events you created. You can edit or cancel these.{% endif %}
             </p>
+            {% if not is_admin %}
+            <div class="inline-flex mt-3 rounded-lg border border-slate-300 overflow-hidden text-xs font-semibold">
+                <a href="{{ url_for('events.list_events', scope='mine') }}" class="px-3.5 py-1.5 {{ 'bg-teal-600 text-white' if scope == 'mine' else 'bg-white text-slate-600 hover:bg-slate-50' }}">My events</a>
+                <a href="{{ url_for('events.list_events', scope='all') }}" class="px-3.5 py-1.5 border-l border-slate-300 {{ 'bg-teal-600 text-white' if scope == 'all' else 'bg-white text-slate-600 hover:bg-slate-50' }}">Campus calendar</a>
+            </div>
+            {% endif %}
         </div>
         <a href="{{ url_for('events.create_event') }}" 
            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
@@ -22,6 +32,7 @@
     <!-- Filter & Search Card -->
     <div class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm">
         <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4 items-end text-xs">
+            <input type="hidden" name="scope" value="{{ scope }}">
             <!-- Search Keyword -->
             <div class="sm:col-span-2 lg:col-span-5">
                 <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">Search Name / Organizer</label>
@@ -53,7 +64,7 @@
                     Apply Filter
                 </button>
                 {% if status_filter or date_filter or search_query %}
-                <a href="{{ url_for('events.list_events') }}" class="py-2.5 px-3 border border-slate-300 text-slate-600 hover:bg-slate-50 font-semibold rounded-lg text-xs transition text-center">
+                <a href="{{ url_for('events.list_events', scope=scope) }}" class="py-2.5 px-3 border border-slate-300 text-slate-600 hover:bg-slate-50 font-semibold rounded-lg text-xs transition text-center">
                     Clear
                 </a>
                 {% endif %}
@@ -101,7 +112,7 @@
                             <a href="{{ url_for('events.view_event', event_id=event.id) }}" class="text-xs font-bold text-indigo-600 hover:text-indigo-800">
                                 View Details
                             </a>
-                            {% if event.is_editable %}
+                            {% if event.is_editable and (is_admin or event.owner_id == current_user.id) %}
                             <span class="text-slate-300">·</span>
                             <a href="{{ url_for('events.edit_event', event_id=event.id) }}" class="text-xs font-medium text-slate-500 hover:text-slate-800">
                                 Edit
@@ -112,8 +123,8 @@
                     {% else %}
                     <tr>
                         <td colspan="6" class="px-5 py-12 text-center text-slate-400">
-                            <p class="text-sm font-semibold text-slate-600">No events found matching your search filters.</p>
-                            <p class="text-xs text-slate-400 mt-1">Try clearing filters or creating a new event.</p>
+                            <p class="text-sm font-semibold text-slate-600">No events found.</p>
+                            <p class="text-xs text-slate-400 mt-1">Try clearing filters{% if not is_admin and scope == 'mine' %}, check the campus calendar,{% endif %} or create a new event.</p>
                         </td>
                     </tr>
                     {% endfor %}

@@ -6,6 +6,7 @@ from app.models import Resource, ResourceType, Allocation
 from app.utils.validators import ValidationError, require_text, parse_datetime
 from app.utils.booking import booked_quantity, find_alternatives, overlaps
 from app.utils.auth import admin_required
+from app.utils.audit import log_action
 
 resources_bp = Blueprint("resources", __name__, url_prefix="/resources")
 
@@ -80,6 +81,8 @@ def create_resource():
             data = _build_resource_from_form(request.form)
             resource = Resource(**data)
             db.session.add(resource)
+            db.session.flush()
+            log_action("resource.create", "Resource", resource.id, f"Added {resource.type} '{resource.name}'")
             db.session.commit()
             flash(f"Resource '{resource.name}' added successfully.", "success")
             return redirect(url_for("resources.list_resources"))
@@ -100,6 +103,7 @@ def edit_resource(resource_id):
             data = _build_resource_from_form(request.form)
             for key, value in data.items():
                 setattr(resource, key, value)
+            log_action("resource.update", "Resource", resource.id, f"Edited '{resource.name}'")
             db.session.commit()
             flash(f"Resource '{resource.name}' updated successfully.", "success")
             return redirect(url_for("resources.list_resources"))
@@ -115,8 +119,9 @@ def edit_resource(resource_id):
 def toggle_resource(resource_id):
     resource = Resource.query.get_or_404(resource_id)
     resource.is_active = not resource.is_active
-    db.session.commit()
     state = "activated" if resource.is_active else "deactivated"
+    log_action(f"resource.{state}", "Resource", resource.id, f"{state.capitalize()} '{resource.name}'")
+    db.session.commit()
     flash(f"Resource '{resource.name}' {state}.", "success")
     return redirect(url_for("resources.list_resources"))
 

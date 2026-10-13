@@ -7,9 +7,9 @@
     <!-- Header & Action -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Resource Requests</h1>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{{ 'Resource Requests' if is_admin else 'My Requests' }}</h1>
             <p class="text-xs sm:text-sm text-slate-500 mt-1">
-                Monitor and review resource requests submitted by event organizers across all stages.
+                {{ 'Monitor and review resource requests submitted by event organizers across all stages.' if is_admin else 'Track the resource requests for your events, from pending to allocated.' }}
             </p>
         </div>
         <a href="{{ url_for('requests.create_request') }}" 

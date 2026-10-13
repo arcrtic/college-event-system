@@ -55,7 +55,8 @@
                                 </button>
                             </form>
                             <form method="post" action="{{ url_for('approvals.reject_request', request_id=req.id) }}" class="inline"
-                                  onsubmit="return confirm('Reject this request?');">
+                                  onsubmit="var r = prompt('Reason for rejection (the organizer will see this):'); if (r === null || r.trim().length < 3) { alert('A reason of at least 3 characters is required.'); return false; } this.reason.value = r.trim(); return true;">
+                                <input type="hidden" name="reason" value="">
                                 <button type="submit" class="px-3.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold text-xs transition">
                                     Reject
                                 </button>

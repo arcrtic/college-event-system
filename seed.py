@@ -32,7 +32,9 @@ from app.models import (
     RequestItem,
     RequestStatus,
     Allocation,
+    User,
 )
+from app.utils.schema import assign_orphan_events, upgrade_and_bootstrap
 
 
 def seed_data(app):
@@ -99,6 +101,15 @@ def seed_data(app):
         except Exception as exc:
             db.session.rollback()
             print(f"[ERROR] Database table initialization failed: {exc}")
+            return False
+
+        # Add any new columns to pre-existing tables and make sure the admin /
+        # organizer accounts exist. Idempotent, so it runs on every boot.
+        try:
+            upgrade_and_bootstrap()
+        except Exception as exc:
+            db.session.rollback()
+            print(f"[ERROR] Schema upgrade / account bootstrap failed: {exc}")
             return False
 
         # Check whether initial resources already exist.
@@ -397,6 +408,9 @@ def seed_data(app):
             print(f"  - {len(resources)} campus resources")
             print("  - 4 sample events")
             print("  - Resource requests and active allocations")
+
+            # Hand the freshly seeded sample events to the demo organizer.
+            assign_orphan_events(User.query.filter_by(username="organizer").first())
 
             return True
 
