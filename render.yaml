@@ -5,6 +5,9 @@ services:
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn run:app --bind 0.0.0.0:$PORT --timeout 60"
     plan: free
+    # Deploys are triggered by .github/workflows/ci-cd.yml (after tests pass),
+    # not by every push -- so README/docs-only commits never redeploy.
+    autoDeploy: false
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9

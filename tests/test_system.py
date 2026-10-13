@@ -1,5 +1,10 @@
+import os
 import unittest
 from datetime import datetime, timedelta
+
+# Must be set before create_app() is called: the app otherwise starts a
+# background seeding thread that races with the in-memory test database.
+os.environ["AUTO_SEED"] = "0"
 
 from app import create_app
 from app.extensions import db

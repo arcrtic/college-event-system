@@ -204,6 +204,31 @@ When a resource is unavailable (fully booked or insufficient units) or unsuitabl
 
 ---
 
+## 🔄 CI/CD Pipeline
+
+Defined in [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) (GitHub Actions → Render).
+
+| Stage | Runs when | What it does |
+| :--- | :--- | :--- |
+| **Test** | Every push / PR to `main` | Installs deps, syntax-checks, runs the unit tests on Python 3.10 and 3.11 |
+| **Deploy** | Push to `main`, only if **Test** passes | Calls the Render Deploy Hook, which rebuilds the production site |
+
+**Docs-only changes never reach production.** Commits that only touch `*.md` files (e.g. `README.md`),
+`docs/`, `LICENSE` or `.gitignore` are excluded via `paths-ignore`, so neither tests nor a deploy run.
+`render.yaml` also sets `autoDeploy: false`, so Render itself never deploys on a plain push.
+
+### One-time setup
+1. Render dashboard → your service → **Settings** → **Build & Deploy** → set **Auto-Deploy** to **Off**
+   (needed if the service was created manually rather than from the blueprint).
+2. In the same page, copy the **Deploy Hook** URL.
+3. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**:
+   name `RENDER_DEPLOY_HOOK_URL`, value = the hook URL.
+
+Run the tests locally with: `python -m unittest discover -s tests -t . -v`
+
+---
+
+
 ## 📁 Repository Structure
 
 ```
