@@ -19,11 +19,15 @@ class Config:
         f"sqlite:///{os.path.join(basedir, 'instance', 'college_events.db')}"
     )
     # Render/Heroku/Railway-style managed Postgres add-ons hand out URLs
-    # starting with "postgres://", but SQLAlchemy 1.4+ (and Flask-SQLAlchemy
-    # 3.x) only accepts the "postgresql://" scheme -- without this rewrite,
-    # deploying against their managed Postgres fails immediately at startup.
+    # starting with "postgres://" or "postgresql://". SQLAlchemy 2.1+
+    # defaults to the psycopg3 driver when it sees "postgresql://", but we
+    # only have psycopg2-binary installed. Explicitly specifying the
+    # "postgresql+psycopg2://" dialect+driver string forces the correct
+    # driver regardless of SQLAlchemy version.
     if _db_url.startswith("postgres://"):
-        _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+        _db_url = _db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif _db_url.startswith("postgresql://"):
+        _db_url = _db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
     SQLALCHEMY_DATABASE_URI = _db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -31,7 +35,7 @@ class Config:
     # a free-tier instance still spinning up) can make psycopg2 hang for a
     # very long time with no feedback. Fail fast instead so retry loops
     # (see seed.py) actually behave like retries instead of one long hang.
-    if _db_url.startswith("postgresql://"):
+    if _db_url.startswith("postgresql+psycopg2://"):
         SQLALCHEMY_ENGINE_OPTIONS = {"connect_args": {"connect_timeout": 5}}
 
     # Shared passcode required to switch into the Admin role in the app's
